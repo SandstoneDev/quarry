@@ -3,33 +3,33 @@
 Target: a custom PSP homebrew engine (pspsdk / sceGu). Map geometry wants the
 most compact vertex the GE can consume so the EDRAM/display-list budget lasts:
 
- vertex format (GE component order is FIXED: weights, texcoord, color, normal, position):
+  vertex format (GE component order is FIXED: weights, texcoord, color, normal, position):
 
- struct PspMapVertex { // 12 bytes, 2-byte aligned
- s16 u, v; // GU_TEXTURE_16BIT (fixed-point, /UV_FIXED_ONE)
- u16 color; // GU_COLOR_5551 (from RGBA8888 vertex color)
- s16 x, y, z; // GU_VERTEX_16BIT (quantized about model AABB)
- };
+    struct PspMapVertex {            // 12 bytes, 2-byte aligned
+        s16  u, v;                   // GU_TEXTURE_16BIT  (fixed-point, /UV_FIXED_ONE)
+        u16  color;                  // GU_COLOR_5551     (from RGBA8888 vertex color)
+        s16  x, y, z;                // GU_VERTEX_16BIT   (quantized about model AABB)
+    };
 
- vfmt flag word (what you pass to sceGuDrawArray / store in the model header):
+  vfmt flag word (what you pass to sceGuDrawArray / store in the model header):
 
- GU_TEXTURE_16BIT | GU_COLOR_5551 | GU_VERTEX_16BIT | GU_TRANSFORM_3D
+    GU_TEXTURE_16BIT | GU_COLOR_5551 | GU_VERTEX_16BIT | GU_TRANSFORM_3D
 
 Position scale convention
 -------------------------
 Positions are quantized to int16 about the model AABB center:
 
- center = (aabb_min + aabb_max) / 2
- half = max over axes of (aabb_max - aabb_min) / 2 (single uniform half-extent)
- scale = half / 32767.0 (one float per model)
+    center = (aabb_min + aabb_max) / 2
+    half   = max over axes of (aabb_max - aabb_min) / 2      (single uniform half-extent)
+    scale  = half / 32767.0                                  (one float per model)
 
- qi = round((p_i - center_i) / scale) clamped to [-32767, 32767] (int16)
+    qi     = round((p_i - center_i) / scale)   clamped to [-32767, 32767]   (int16)
 
 On the engine the original position is recovered with a uniform sceGumScale +
 translate:
 
- sceGumTranslate(center); sceGumScale(scale, scale, scale);
- p_i = center_i + qi * scale
+    sceGumTranslate(center);  sceGumScale(scale, scale, scale);
+    p_i = center_i + qi * scale
 
 A single uniform scale (one float) keeps the int16 lattice isotropic and matches
 how SA/the console title already drive sceGumScale per object. `center` is returned so the
@@ -38,7 +38,8 @@ engine can translate as well (degenerate / zero-extent models get scale=1.0).
 UV scale convention
 -------------------
 UVs are stored as GU_TEXTURE_16BIT fixed-point: raw = round(uv * UV_FIXED_ONE).
-THE GE READS THE 16 BITS AS UNSIGNED u1.15 (Sony GE-UM 6.1/6.5, GE-CR p13) - there is no signed texcoord path in the hardware. With the engine's global
+THE GE READS THE 16 BITS AS UNSIGNED u1.15 (Sony GE-UM 6.1/6.5, GE-CR p13) --
+there is no signed texcoord path in the hardware. With the engine's global
 sceGuTexScale(8,8) the sampling window is [0,16) tiles, wrapping mod 16, so
 the honest packing is raw mod 65536 (bit-identical to the old signed value
 for |uv| < 8; correct instead of destroyed for larger magnitudes). Bakers
@@ -55,7 +56,7 @@ from typing import List, Dict
 
 # --- GU vertex-type flag bits (from pspgu.h) ----------------------------------
 GU_TEXTURE_16BIT = 0x00000001   # texcoord component = 2x s16
-GU_COLOR_5551    = 0x00600000   # color component = 1x u16 (5551)
+GU_COLOR_5551    = 0x00600000   # color component   = 1x u16 (5551)
 GU_VERTEX_16BIT  = 0x00000080   # position component = 3x s16
 GU_TRANSFORM_3D  = 0x00000000   # transformed by the GE matrices (vs 2D)
 GU_INDEX_16BIT   = 0x00000800   # index list = u16
@@ -85,9 +86,9 @@ def _clamp_s16(v: int) -> int:
 
 def _pack_uv16(v: float) -> int:
     """Quantize one UV into the GE's UNSIGNED u16 window (mod 16 tiles at the
- engine's TexScale 8) and return it as the equivalent s16 bit pattern for
- the '<h' struct slot. Identical bits to the legacy signed value while
- |uv| < 8; correct window aliasing (instead of a destructive clamp) beyond."""
+    engine's TexScale 8) and return it as the equivalent s16 bit pattern for
+    the '<h' struct slot. Identical bits to the legacy signed value while
+    |uv| < 8; correct window aliasing (instead of a destructive clamp) beyond."""
     q = int(round(v * UV_FIXED_ONE)) % 0x10000
     return q - 0x10000 if q > _S16_MAX else q
 
@@ -95,8 +96,8 @@ def _pack_uv16(v: float) -> int:
 def rgba8888_to_5551(rgba: int) -> int:
     """Pack an RGBA8888 int (R high byte) into a GU_COLOR_5551 u16.
 
- GE 5551 little-endian bit layout: R[0:5] G[5:10] B[10:15] A[15].
- """
+    GE 5551 little-endian bit layout: R[0:5] G[5:10] B[10:15] A[15].
+    """
     r = (rgba >> 24) & 0xFF
     g = (rgba >> 16) & 0xFF
     b = (rgba >> 8) & 0xFF
@@ -157,23 +158,23 @@ def compute_quant(model) -> tuple:
 def pack_model(model) -> Dict:
     """Pack a sa_dff.SaModel into PSP-GE-ready geometry.
 
- Returns:
- {
- "vfmt": int, # GU vertex-type flag word (VFMT)
- "scale": float, # uniform position dequant scale
- "center":(x,y,z), # AABB center the engine translates by
- "uv_fixed_one": float, # UV fixed-point unit
- "prims": [ # one entry per SaMesh (indexed GU_PRIM_TRIANGLES)
- {
- "material_index": int,
- "vertex_bytes": bytes, # vcount * VERTEX_SIZE
- "index_bytes": bytes, # icount * 2 (GU_INDEX_16BIT)
- "vcount": int,
- "icount": int,
- }, ...
- ],
- }
- """
+    Returns:
+      {
+        "vfmt":  int,            # GU vertex-type flag word (VFMT)
+        "scale": float,          # uniform position dequant scale
+        "center":(x,y,z),        # AABB center the engine translates by
+        "uv_fixed_one": float,   # UV fixed-point unit
+        "prims": [               # one entry per SaMesh (indexed GU_PRIM_TRIANGLES)
+            {
+              "material_index": int,
+              "vertex_bytes": bytes,   # vcount * VERTEX_SIZE
+              "index_bytes":  bytes,   # icount * 2 (GU_INDEX_16BIT)
+              "vcount": int,
+              "icount": int,
+            }, ...
+        ],
+      }
+    """
     (cx, cy, cz), scale = compute_quant(model)
     inv = (1.0 / scale) if scale != 0.0 else 0.0
 
@@ -231,8 +232,8 @@ def pack_model(model) -> Dict:
 def unpack_positions(vertex_bytes: bytes, scale: float, center: tuple) -> List[tuple]:
     """Read back dequantized positions from a packed vertex buffer.
 
- Reverses pack_model's quantization: p = center + qi * scale.
- """
+    Reverses pack_model's quantization: p = center + qi * scale.
+    """
     cx, cy, cz = center
     out = []
     n = len(vertex_bytes) // VERTEX_SIZE

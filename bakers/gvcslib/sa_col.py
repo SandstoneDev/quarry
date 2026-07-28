@@ -6,43 +6,43 @@ own FourCC'd sub-file, so parse_col_file() loops until the bytes run out.
 
 Byte layout (verified against real GTA3.IMG bytes, see tests/test_sa_col.py):
 
- Common file header (all versions)
- +0 char[4] FourCC 'COLL' | 'COL2' | 'COL3' | 'COL4'
- +4 u32 size bytes of THIS sub-file AFTER the +8 header
- (i.e. sub-file total length == 8 + size)
- --- everything below is at sub[8:]; ALL section offsets in the COL2/3 header
- are measured from sub[4] (the size field), so an in-file byte index is
- (4 + stored_offset). ---
- +8 char[22] name nul-padded model name
- +30 u16 model_id (TObjectID; zone-local in SA)
- +32 f32[3] bbox_min
- +44 f32[3] bbox_max
- +56 f32[3] bound_center
- +68 f32 bound_radius
+  Common file header (all versions)
+    +0   char[4]   FourCC      'COLL' | 'COL2' | 'COL3' | 'COL4'
+    +4   u32       size        bytes of THIS sub-file AFTER the +8 header
+                               (i.e. sub-file total length == 8 + size)
+  --- everything below is at sub[8:]; ALL section offsets in the COL2/3 header
+      are measured from sub[4] (the size field), so an in-file byte index is
+      (4 + stored_offset). ---
+    +8   char[22]  name        nul-padded model name
+    +30  u16       model_id    (TObjectID; zone-local in SA)
+    +32  f32[3]    bbox_min
+    +44  f32[3]    bbox_max
+    +56  f32[3]    bound_center
+    +68  f32       bound_radius
 
- COLL (version 1) header continues differently (bbox first, then sphere) and
- uses UNCOMPRESSED float vertices. It is rare in this corpus; supported.
+  COLL (version 1) header continues differently (bbox first, then sphere) and
+  uses UNCOMPRESSED float vertices. It is rare in this corpus; supported.
 
- COL2 / COL3 header continues:
- +72 u16 num_spheres
- +74 u16 num_boxes
- +76 u32 num_faces
- +80 u32 flags (bit1 0x02 = not-empty, bit3 0x08 = face groups)
- +84 u32 off_spheres
- +88 u32 off_boxes
- +92 u32 off_cones (COL3 cones / COL2 unused)
- +96 u32 off_vertices
- +100 u32 off_faces
- (COL3 only) +104 u32 off_triangle_planes - not needed for geometry
- num_vertices is NOT stored: it is (off_faces - off_vertices) // 6.
+  COL2 / COL3 header continues:
+    +72  u16       num_spheres
+    +74  u16       num_boxes
+    +76  u32       num_faces
+    +80  u32       flags        (bit1 0x02 = not-empty, bit3 0x08 = face groups)
+    +84  u32       off_spheres
+    +88  u32       off_boxes
+    +92  u32       off_cones    (COL3 cones / COL2 unused)
+    +96  u32       off_vertices
+    +100 u32       off_faces
+    (COL3 only) +104 u32 off_triangle_planes  - not needed for geometry
+    num_vertices is NOT stored: it is (off_faces - off_vertices) // 6.
 
- Sections (offset = 4 + stored value, within the sub-file blob):
- Sphere 20 bytes: f32 cx,cy,cz, f32 radius, u8 mat, u8 flag, u8 brightness, u8 light
- Box 28 bytes: f32 min[3], f32 max[3], u8 mat, u8 flag, u8 brightness, u8 light
- Vertex 6 bytes: i16 x,y,z -> divide by 128.0 to get float metres (COL2/3)
- Face 8 bytes: u16 a,b,c, u8 material, u8 light
- FaceGroup 28 bytes: i16 min[3], i16 max[3], u16 start, u16 end (when flag 0x08)
- preceded by a u32 count stored immediately before off_faces.
+  Sections (offset = 4 + stored value, within the sub-file blob):
+    Sphere   20 bytes: f32 cx,cy,cz, f32 radius, u8 mat, u8 flag, u8 brightness, u8 light
+    Box      28 bytes: f32 min[3], f32 max[3], u8 mat, u8 flag, u8 brightness, u8 light
+    Vertex    6 bytes: i16 x,y,z  -> divide by 128.0 to get float metres (COL2/3)
+    Face      8 bytes: u16 a,b,c, u8 material, u8 light
+    FaceGroup 28 bytes: i16 min[3], i16 max[3], u16 start, u16 end  (when flag 0x08)
+              preceded by a u32 count stored immediately before off_faces.
 
 This module is read-only. It never mutates the input bytes.
 """
@@ -190,7 +190,7 @@ def _parse_v23(sub: bytes, version: int) -> ColModel:
     flags = _u32(sub, 80)
     off_spheres = _u32(sub, 84)
     off_boxes = _u32(sub, 88)
-    # off_cones = _u32(sub, 92) # COL3 cones / COL2 unused
+    # off_cones = _u32(sub, 92)   # COL3 cones / COL2 unused
     off_verts = _u32(sub, 96)
     off_faces = _u32(sub, 100)
 
@@ -269,9 +269,9 @@ def _parse_v23(sub: bytes, version: int) -> ColModel:
 def parse_col_file(blob: bytes) -> List[ColModel]:
     """Parse a (possibly concatenated) collision blob into a list of ColModel.
 
- Stops cleanly at the first non-COL FourCC or when fewer than 8 header
- bytes remain (trailing IMG sector padding is common).
- """
+    Stops cleanly at the first non-COL FourCC or when fewer than 8 header
+    bytes remain (trailing IMG sector padding is common).
+    """
     out: List[ColModel] = []
     off = 0
     n = len(blob)

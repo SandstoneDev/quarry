@@ -1,49 +1,49 @@
-"""RW-PSP texture full codec (GTA: the source console title, PSP).
+"""RW-PSP texture full codec (the source console title, PSP).
 
 This module decodes the *embedded* RW-PSP rasters that the streaming system
 packs inside the world ``<ZONE>.IMG`` files (reached via the ``.LVZ`` texture
 grid), as well as decoding a general RW-PSP raster given its descriptor byte
-pair. It complements :mod:`gvcslib.xtx`, which handles the *standalone*
+pair.  It complements :mod:`gvcslib.xtx`, which handles the *standalone*
 single-texture ``.XTX`` files; this module is for the dictionary blobs that
 live inside an IMG cell.
 
 IMG-cell texture dictionary (``AERA`` container)
 ------------------------------------------------
 A texture-grid cell (see :mod:`gvcslib.lvz`, ``TexCell``) names a byte range of
-the sibling IMG. That range is a 0x20-byte relocatable container with magic
-``AERA`` (see :mod:`gvcslib.container`). Inside the relocated payload sits a
+the sibling IMG.  That range is a 0x20-byte relocatable container with magic
+``AERA`` (see :mod:`gvcslib.container`).  Inside the relocated payload sits a
 texture dictionary whose individual rasters are introduced by a 0x10-byte
 *texture descriptor*:
 
- +0x00 u8 descByte0
- +0x01 u8 descByte1 (log2 width = low nibble, log2 height = high nibble)
- +0x02 u16 marker == 0x0012 (the "RW-PSP raster" tag)
- +0x04 u32 texel_ptr == (descriptor offset + 0x10): the texels follow
- +0x08 u32 pad[2] (zero)
+    +0x00 u8   descByte0
+    +0x01 u8   descByte1   (log2 width  = low nibble, log2 height = high nibble)
+    +0x02 u16  marker      == 0x0012  (the "RW-PSP raster" tag)
+    +0x04 u32  texel_ptr   == (descriptor offset + 0x10): the texels follow
+    +0x08 u32  pad[2]      (zero)
 
 ``descByte0`` packs:
 
- bits [2:0] TPSM format (0=565, 1=5551, 2=4444, 3=8888, 4=T4, 5=T8)
- bit [3] swizzle flag
- bits [6:4] maxMipLevel -> mip count = (descByte0 & 0x70) >> 4 (>=1)
- bit [7] mip-enable
+    bits [2:0]  TPSM format  (0=565, 1=5551, 2=4444, 3=8888, 4=T4, 5=T8)
+    bit  [3]    swizzle flag
+    bits [6:4]  maxMipLevel  -> mip count = (descByte0 & 0x70) >> 4 (>=1)
+    bit  [7]    mip-enable
 
 After the descriptor come the texels: the FULL mip chain (every level packed
 contiguously, level 0 first), then a fixed 0x20-byte name/flags trailer, then
-the CLUT (palette). For palettised formats the CLUT is 256 (T8) or 16 (T4)
-RGBA8888 entries, alpha LAST byte. ``decode`` returns one :class:`RwTexture`
+the CLUT (palette).  For palettised formats the CLUT is 256 (T8) or 16 (T4)
+RGBA8888 entries, alpha LAST byte.  ``decode`` returns one :class:`RwTexture`
 per descriptor in the blob.
 
 Swizzle
 -------
 The PSP GE stores texels in 16-byte by 8-row blocks, blocks laid out
-left-to-right then top-to-bottom, each block written as contiguous rows. The
+left-to-right then top-to-bottom, each block written as contiguous rows.  The
 swizzle operates on the *byte* image whose width in bytes is::
 
- T4 -> max(W // 2, 16) (4 bpp, 2 texels/byte)
- T8 -> W (8 bpp)
- 565/5551/4444 (16bpp) -> W * 2
- 8888 (32bpp) -> W * 4
+    T4   -> max(W // 2, 16)      (4 bpp, 2 texels/byte)
+    T8   -> W                    (8 bpp)
+    565/5551/4444 (16bpp) -> W * 2
+    8888 (32bpp)          -> W * 4
 
 A mip level whose height is < 8 (or whose byte width is < 16) stores a partial
 final block-row; :func:`unswizzle`/:func:`swizzle` clamp the row count per
@@ -121,10 +121,10 @@ def byte_width(fmt, w):
 def unswizzle(src, wbytes, h):
     """De-swizzle a PSP texel byte plane (``wbytes`` x ``h``) into linear order.
 
- The plane is read as 16-byte x 8-row blocks (rows-within-block contiguous,
- blocks left-to-right then top-to-bottom). A final partial block-row
- (``h`` not a multiple of 8) is handled by clamping its row count.
- """
+    The plane is read as 16-byte x 8-row blocks (rows-within-block contiguous,
+    blocks left-to-right then top-to-bottom).  A final partial block-row
+    (``h`` not a multiple of 8) is handled by clamping its row count.
+    """
     out = bytearray(wbytes * h)
     bxn = wbytes // BLOCK_W
     i = 0
@@ -143,8 +143,8 @@ def unswizzle(src, wbytes, h):
 def swizzle(src, wbytes, h):
     """Swizzle a linear texel byte plane (``wbytes`` x ``h``) into PSP order.
 
- Exact inverse of :func:`unswizzle`.
- """
+    Exact inverse of :func:`unswizzle`.
+    """
     out = bytearray(wbytes * h)
     bxn = wbytes // BLOCK_W
     i = 0
@@ -234,24 +234,24 @@ def _decode4444(buf, n):
 class RwTexture:
     """One decoded RW-PSP raster.
 
- Attributes:
- w, h: base (level 0) pixel dimensions.
- fmt: TPSM format id (see FMT_* constants).
- mipcount: number of stored mip levels.
- indices: for palettised formats, level-0 UN-swizzled palette
- indices (bytes, length w*h, one byte each). None for
- direct-colour formats.
- pixels: for direct-colour formats, level-0 UN-swizzled raw texels
- (bytes, length w*h*bpp/8). None for palettised formats.
- palette: CLUT bytes (entries*4 RGBA8888, alpha last), or b"" for
- direct-colour formats.
- csa: clut start address offset applied (entries, usually 0).
- desc_off: blob offset of the 0x10-byte descriptor.
- texel_off: blob offset of the level-0 texels.
- clut_off: blob offset of the CLUT (or texel-region end for direct).
- mip_offsets: list of (blob_offset, byte_size) per stored mip level.
- raw: the source blob (preserved for byte-exact encode).
- """
+    Attributes:
+        w, h:        base (level 0) pixel dimensions.
+        fmt:         TPSM format id (see FMT_* constants).
+        mipcount:    number of stored mip levels.
+        indices:     for palettised formats, level-0 UN-swizzled palette
+                     indices (bytes, length w*h, one byte each).  None for
+                     direct-colour formats.
+        pixels:      for direct-colour formats, level-0 UN-swizzled raw texels
+                     (bytes, length w*h*bpp/8).  None for palettised formats.
+        palette:     CLUT bytes (entries*4 RGBA8888, alpha last), or b"" for
+                     direct-colour formats.
+        csa:         clut start address offset applied (entries, usually 0).
+        desc_off:    blob offset of the 0x10-byte descriptor.
+        texel_off:   blob offset of the level-0 texels.
+        clut_off:    blob offset of the CLUT (or texel-region end for direct).
+        mip_offsets: list of (blob_offset, byte_size) per stored mip level.
+        raw:         the source blob (preserved for byte-exact encode).
+    """
 
     def __init__(self, w, h, fmt, mipcount, indices, pixels, palette, csa,
                  desc_off, texel_off, clut_off, mip_offsets, raw):
@@ -318,11 +318,11 @@ class RwTexture:
 def _find_descriptors(blob):
     """Return the blob offsets of every RW-PSP raster descriptor.
 
- A genuine descriptor has the 0x0012 marker at +0x02 *and* a self-pointer
- ``texel_ptr == desc_off + 0x10`` at +0x04 (the texels always immediately
- follow the 0x10-byte descriptor). This strict pairing rejects the
- incidental 0x0012 half-words that occur inside texel data.
- """
+    A genuine descriptor has the 0x0012 marker at +0x02 *and* a self-pointer
+    ``texel_ptr == desc_off + 0x10`` at +0x04 (the texels always immediately
+    follow the 0x10-byte descriptor).  This strict pairing rejects the
+    incidental 0x0012 half-words that occur inside texel data.
+    """
     offs = []
     marker = struct.pack("<H", RASTER_MARKER)
     pos = blob.find(marker, 2)
@@ -412,11 +412,11 @@ def _decode_one(blob, desc_off):
 def decode(blob, all=False):
     """Decode RW-PSP texture(s) from an IMG-cell blob.
 
- ``blob`` may be the raw bytes of an ``AERA`` container, a
- :class:`~gvcslib.container.Container`, or already an inflated payload.
- Returns the first :class:`RwTexture` by default; pass ``all=True`` to get
- the full list of every raster descriptor found in the blob.
- """
+    ``blob`` may be the raw bytes of an ``AERA`` container, a
+    :class:`~gvcslib.container.Container`, or already an inflated payload.
+    Returns the first :class:`RwTexture` by default; pass ``all=True`` to get
+    the full list of every raster descriptor found in the blob.
+    """
     if isinstance(blob, Container):
         data = blob.payload
     else:
@@ -469,11 +469,11 @@ def _repack_palettised(tex, out):
 def encode(tex):
     """Re-encode a decoded texture (or list) back to whole-blob bytes.
 
- Byte-exact: starts from ``tex.raw`` and rewrites only each texture's
- level-0 texel plane (re-swizzled from the decoded indices/pixels) and CLUT
- region. Lower mip levels, descriptors, name trailers, padding and any
- other resources in the blob are preserved verbatim.
- """
+    Byte-exact: starts from ``tex.raw`` and rewrites only each texture's
+    level-0 texel plane (re-swizzled from the decoded indices/pixels) and CLUT
+    region.  Lower mip levels, descriptors, name trailers, padding and any
+    other resources in the blob are preserved verbatim.
+    """
     texs = tex if isinstance(tex, (list, tuple)) else [tex]
     out = bytearray(texs[0].raw)
     for t in texs:

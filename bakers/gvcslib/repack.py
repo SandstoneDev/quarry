@@ -1,4 +1,4 @@
-"""Repack / build pipeline for GTA: the source console title (PSP) assets.
+"""Repack / build pipeline for the source console title (PSP) assets.
 
 This module is the *write* side of the codec library: given decoded structures
 (or raw payloads) it rebuilds engine-loadable container files and re-assembles
@@ -7,28 +7,28 @@ the streaming ``*.IMG`` archives.
 Three things live here:
 
 ``rebuild_container(payload_bytes, *, compress=None)``
- Wrap an (inflated) container payload back into an on-disk file. zlib
- containers (``LVZ`` magic ``DLRW``, ``DTZ`` magic ``GTAG``) are re-deflated;
- raw containers (``XTX`` magic ``tex``, ``IMG`` cells) are returned verbatim.
- The byte-exact contract for zlib containers is at the *inflated payload*
- level: ``inflate(rebuild_container(p)) == p`` (the compressed bytes need not
- match the original disc image, only round-trip losslessly and stay
- engine-loadable).
+    Wrap an (inflated) container payload back into an on-disk file. zlib
+    containers (``LVZ`` magic ``DLRW``, ``DTZ`` magic ``GTAG``) are re-deflated;
+    raw containers (``XTX`` magic ``tex``, ``IMG`` cells) are returned verbatim.
+    The byte-exact contract for zlib containers is at the *inflated payload*
+    level: ``inflate(rebuild_container(p)) == p`` (the compressed bytes need not
+    match the original disc image, only round-trip losslessly and stay
+    engine-loadable).
 
 ``repack_img(blobs, *, total_size=None, align=0x800)``
- Re-assemble an IMG from a list of ``(offset, bytes)`` cell blobs. Each blob
- is written at its original byte offset; the engine streams 2 KiB
- (``0x800``) sectors, so offsets are expected to be page aligned, but the
- function honours whatever offsets it is given (sub-page tightly-packed
- chunks included) and simply lays each blob down at its absolute offset.
- Inter-blob gaps are zero-filled. This reproduces the original IMG byte ranges
- exactly when fed the blobs read back from those same offsets.
+    Re-assemble an IMG from a list of ``(offset, bytes)`` cell blobs. Each blob
+    is written at its original byte offset; the engine streams 2 KiB
+    (``0x800``) sectors, so offsets are expected to be page aligned, but the
+    function honours whatever offsets it is given (sub-page tightly-packed
+    chunks included) and simply lays each blob down at its absolute offset.
+    Inter-blob gaps are zero-filled. This reproduces the original IMG byte ranges
+    exactly when fed the blobs read back from those same offsets.
 
 ``open(path)`` / ``EditableContainer``
- A small edit-round-trip helper: ``c = repack.open(path)`` returns an
- :class:`EditableContainer` whose ``.payload`` you can mutate (or
- ``.replace_payload(new)``), then ``c.write(out_path)`` re-encodes the file
- with the correct compression for that container kind.
+    A small edit-round-trip helper: ``c = repack.open(path)`` returns an
+    :class:`EditableContainer` whose ``.payload`` you can mutate (or
+    ``.replace_payload(new)``), then ``c.write(out_path)`` re-encodes the file
+    with the correct compression for that container kind.
 
 Everything reuses :mod:`gvcslib.container` for the header semantics, and the
 IMG TOC is taken from :mod:`gvcslib.lvz` (streaming descriptors + texture-grid
@@ -57,7 +57,7 @@ _RAW_MAGICS = frozenset((MAGIC_TEX,))
 
 
 # --------------------------------------------------------------------------- #
-# container rebuild #
+# container rebuild                                                           #
 # --------------------------------------------------------------------------- #
 def _payload_magic(payload: bytes) -> int:
     if len(payload) < 4:
@@ -74,17 +74,17 @@ def rebuild_container(payload_bytes, *, compress: Optional[bool] = None,
                       level: int = 9) -> bytes:
     """Wrap an inflated container payload back into an engine-loadable file.
 
- ``payload_bytes`` is the *inflated* payload (it begins with the 0x20-byte
- container header). The compression decision is made from the magic:
+    ``payload_bytes`` is the *inflated* payload (it begins with the 0x20-byte
+    container header). The compression decision is made from the magic:
 
- * ``DLRW`` (LVZ) and ``GTAG`` (DTZ) -> zlib-deflate.
- * ``tex`` (XTX) and anything else considered raw -> returned verbatim.
+      * ``DLRW`` (LVZ) and ``GTAG`` (DTZ) -> zlib-deflate.
+      * ``tex`` (XTX) and anything else considered raw -> returned verbatim.
 
- Pass ``compress=True``/``False`` to override the magic-based choice.
+    Pass ``compress=True``/``False`` to override the magic-based choice.
 
- Contract: for zlib containers ``zlib.decompress(rebuild_container(p)) == p``
- byte-for-byte; for raw containers ``rebuild_container(p) == p``.
- """
+    Contract: for zlib containers ``zlib.decompress(rebuild_container(p)) == p``
+    byte-for-byte; for raw containers ``rebuild_container(p) == p``.
+    """
     payload = bytes(payload_bytes)
     if compress is None:
         compress = container_is_zlib(payload)
@@ -94,7 +94,7 @@ def rebuild_container(payload_bytes, *, compress: Optional[bool] = None,
 
 
 # --------------------------------------------------------------------------- #
-# IMG sector repack #
+# IMG sector repack                                                           #
 # --------------------------------------------------------------------------- #
 def align_up(value: int, align: int = PAGE) -> int:
     """Round ``value`` up to the next multiple of ``align``."""
@@ -109,16 +109,16 @@ def repack_img(blobs: Sequence[Tuple[int, bytes]], *,
                align: int = PAGE) -> bytes:
     """Re-assemble an IMG from ``(offset, bytes)`` cell blobs.
 
- Each blob is laid down at its absolute ``offset``. Gaps between blobs are
- zero-filled. ``align`` documents the engine's 2 KiB streaming-sector
- expectation: the final buffer is rounded up to a multiple of ``align`` (and
- so is ``total_size`` if you pass one). Offsets themselves are written
- verbatim - the engine streams whole sectors, so well-formed IMGs keep blobs
- page aligned, but tightly-packed sub-page blobs round-trip unchanged too.
+    Each blob is laid down at its absolute ``offset``. Gaps between blobs are
+    zero-filled. ``align`` documents the engine's 2 KiB streaming-sector
+    expectation: the final buffer is rounded up to a multiple of ``align`` (and
+    so is ``total_size`` if you pass one). Offsets themselves are written
+    verbatim - the engine streams whole sectors, so well-formed IMGs keep blobs
+    page aligned, but tightly-packed sub-page blobs round-trip unchanged too.
 
- When fed the blobs read back from an original IMG at their TOC offsets, the
- rebuilt buffer reproduces those byte ranges exactly.
- """
+    When fed the blobs read back from an original IMG at their TOC offsets, the
+    rebuilt buffer reproduces those byte ranges exactly.
+    """
     items: List[Tuple[int, bytes]] = [(int(off), bytes(b)) for off, b in blobs]
     end = 0
     for off, b in items:
@@ -141,13 +141,13 @@ def repack_img(blobs: Sequence[Tuple[int, bytes]], *,
 
 def img_toc(lvz) -> List[Tuple[int, int]]:
     """Return the IMG table-of-contents as a sorted, de-duplicated list of
- ``(img_offset, size)`` blobs from an :class:`gvcslib.lvz.Lvz`.
+    ``(img_offset, size)`` blobs from an :class:`gvcslib.lvz.Lvz`.
 
- The TOC is the union of the streaming descriptors and texture-grid cells;
- each names a byte range in the sibling ``*.IMG``. Duplicate ``(offset,
- size)`` entries (the engine can reference the same chunk from several grid
- cells) are collapsed.
- """
+    The TOC is the union of the streaming descriptors and texture-grid cells;
+    each names a byte range in the sibling ``*.IMG``. Duplicate ``(offset,
+    size)`` entries (the engine can reference the same chunk from several grid
+    cells) are collapsed.
+    """
     seen = set()
     toc: List[Tuple[int, int]] = []
     for d in getattr(lvz, "streaming_descriptors", ()):  # StreamDescriptor
@@ -168,9 +168,9 @@ def read_img_blobs(img_path: str, toc: Iterable[Tuple[int, int]]
                    ) -> List[Tuple[int, bytes]]:
     """Read ``(offset, size)`` ranges out of an IMG file on disk.
 
- Returns ``(offset, bytes)`` blobs suitable for :func:`repack_img`. Reads
- only the requested ranges (the IMGs are hundreds of MB) via ``seek``.
- """
+    Returns ``(offset, bytes)`` blobs suitable for :func:`repack_img`. Reads
+    only the requested ranges (the IMGs are hundreds of MB) via ``seek``.
+    """
     blobs: List[Tuple[int, bytes]] = []
     with builtins.open(img_path, "rb") as f:
         for off, size in toc:
@@ -186,10 +186,10 @@ def read_img_blobs(img_path: str, toc: Iterable[Tuple[int, int]]
 def repack_img_from_lvz(lvz, img_path: str) -> Tuple[bytes, List[Tuple[int, int]]]:
     """Read every TOC blob from ``img_path`` and repack them at the same offsets.
 
- Returns ``(rebuilt_region_bytes, toc)`` where ``rebuilt_region_bytes`` is a
- buffer covering offset 0 .. (last blob end, page-rounded) with each blob at
- its original offset. The covered ranges match the original IMG byte-exact.
- """
+    Returns ``(rebuilt_region_bytes, toc)`` where ``rebuilt_region_bytes`` is a
+    buffer covering offset 0 .. (last blob end, page-rounded) with each blob at
+    its original offset. The covered ranges match the original IMG byte-exact.
+    """
     toc = img_toc(lvz)
     blobs = read_img_blobs(img_path, toc)
     rebuilt = repack_img(blobs)
@@ -197,16 +197,16 @@ def repack_img_from_lvz(lvz, img_path: str) -> Tuple[bytes, List[Tuple[int, int]
 
 
 # --------------------------------------------------------------------------- #
-# edit round-trip helper #
+# edit round-trip helper                                                      #
 # --------------------------------------------------------------------------- #
 class EditableContainer:
     """A loaded container you can edit and re-write.
 
- ``payload`` is the inflated payload (mutable via :meth:`replace_payload`).
- :meth:`write` re-encodes with the correct compression for the container
- kind (zlib for LVZ/DTZ, raw for XTX), preserving the inflated payload
- byte-exact.
- """
+    ``payload`` is the inflated payload (mutable via :meth:`replace_payload`).
+    :meth:`write` re-encodes with the correct compression for the container
+    kind (zlib for LVZ/DTZ, raw for XTX), preserving the inflated payload
+    byte-exact.
+    """
 
     def __init__(self, payload: bytes, *, source_was_compressed: Optional[bool] = None):
         self._payload = bytes(payload)

@@ -1,6 +1,6 @@
 """PSP VAG sound banks - the console title ``AUDIO/SETx/SFXn_PSP.RAW`` (Sony 4-bit ADPCM).
 
-derived from the retail files ( RE library/formats/vag-audio.md):
+Format notes, derived from the retail files:
 each ``SFXn_PSP.RAW`` is a flat **bank** of standard Sony ``VAGp`` sub-files laid
 end to end - there is no separate directory file; every sub-file is self-describing.
 
@@ -8,18 +8,18 @@ Sub-file layout (big-endian header, verified SET0/SFX5_PSP.RAW)
 --------------------------------------------------------------
 ::
 
- +0x00 char[4] 'VAGp' magic
- +0x04 u32 BE version (0x00000004)
- +0x08 u32 reserved (0)
- +0x0C u32 BE data_size ADPCM byte count that follows the header
- +0x10 u32 BE sample_rate Hz (e.g. 22050, 16000)
- +0x14 12 bytes reserved (0)
- +0x20 char[16] name (e.g. "SFX_CAR_ACCEL.WA")
- +0x30 .. data_size bytes of VAG ADPCM (16-byte frames)
+    +0x00  char[4]  'VAGp'              magic
+    +0x04  u32 BE   version             (0x00000004)
+    +0x08  u32      reserved (0)
+    +0x0C  u32 BE   data_size           ADPCM byte count that follows the header
+    +0x10  u32 BE   sample_rate         Hz (e.g. 22050, 16000)
+    +0x14  12 bytes reserved (0)
+    +0x20  char[16] name                (e.g. "SFX_CAR_ACCEL.WA")
+    +0x30  ..        data_size bytes of VAG ADPCM (16-byte frames)
 
 The next sub-file begins at ``offset + 0x30 + data_size`` (header is 0x30, NOT 0x40 -
 the 16 bytes at +0x30 are the conventional VAG zero priming frame counted inside
-``data_size``). The bank ends when the cursor runs out or the magic stops matching.
+``data_size``).  The bank ends when the cursor runs out or the magic stops matching.
 
 VAG ADPCM frame (16 bytes, canonical PSX/PS2/PSP codec)
 -------------------------------------------------------
@@ -27,10 +27,10 @@ VAG ADPCM frame (16 bytes, canonical PSX/PS2/PSP codec)
 ``byte2..15`` = 14 bytes, each two 4-bit samples (low nibble first) -> 28 PCM samples.
 Decode: ``s = sign4(nibble) << 12 >> shift``; then
 ``out = clamp16(s + (hist1*f0[p] + hist2*f1[p]) >> 6)`` with the standard predictor
-coefficient tables. Mono output.
+coefficient tables.  Mono output.
 
 This is a **read-only decoder** (the player path): VAG ADPCM is lossy, so there is no
-byte-exact re-encode. The round-trip gate that applies is the **container**:
+byte-exact re-encode.  The round-trip gate that applies is the **container**:
 ``rebuild_bank(parse_bank(data), data) == data`` byte-for-byte (re-slicing the bank
 reproduces the file), which :func:`rebuild_bank` guarantees and the test suite checks.
 """
@@ -85,9 +85,9 @@ class VagEntry:
 def parse_bank(data):
     """Return ``[VagEntry, ...]`` for every contiguous ``VAGp`` sub-file in *data*.
 
- Walks from offset 0, stepping ``0x30 + data_size`` per entry, stopping when the
- magic no longer matches or the declared size would overrun the buffer.
- """
+    Walks from offset 0, stepping ``0x30 + data_size`` per entry, stopping when the
+    magic no longer matches or the declared size would overrun the buffer.
+    """
     data = bytes(data)
     out = []
     o = 0
@@ -110,9 +110,9 @@ def parse_bank(data):
 def rebuild_bank(entries, data):
     """Re-slice *entries* out of the original *data* and concatenate.
 
- Byte-exact identity for the container: ``rebuild_bank(parse_bank(d), d) == d``
- for a well-formed bank (this is the round-trip gate for the read-only codec).
- """
+    Byte-exact identity for the container: ``rebuild_bank(parse_bank(d), d) == d``
+    for a well-formed bank (this is the round-trip gate for the read-only codec).
+    """
     data = bytes(data)
     out = bytearray()
     for e in entries:

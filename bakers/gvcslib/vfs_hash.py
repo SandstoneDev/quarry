@@ -1,8 +1,8 @@
-"""VFS path-hash codec (GTA: the source console title, PSP).
+"""VFS path-hash codec (the source console title, PSP).
 
 The game's virtual file system (the disc / RUNDATA archive index) addresses
 every packed resource by a 32-bit hash of its canonical path rather than by a
-string. The hash is Bob Jenkins' classic ``lookup2`` (the 1996/97 ``hash()``
+string.  The hash is Bob Jenkins' classic ``lookup2`` (the 1996/97 ``hash()``
 function, predecessor of ``hashlittle``), seeded with the IEEE CRC-32
 polynomial ``0x04C11DB7``.
 
@@ -11,14 +11,14 @@ records kept sorted ascending by ``hash`` so the loader can binary-search a
 path's hash to find its logical block number (LBN) and byte size on the UMD.
 
 Path normalization (applied before hashing):
- * backslash ``\\`` -> forward slash ``/``
- * lowercase -> UPPERCASE
- * trailing spaces trimmed
+  * backslash ``\\`` -> forward slash ``/``
+  * lowercase -> UPPERCASE
+  * trailing spaces trimmed
 
 Verified anchor::
 
- path_hash(normalize('DISC0:/PSP_GAME/USRDIR/RUNDATA/PSP/GAME.DTZ'),
- 0x04C11DB7) == 0x3a344db9
+    path_hash(normalize('DISC0:/PSP_GAME/USRDIR/RUNDATA/PSP/GAME.DTZ'),
+              0x04C11DB7) == 0x3a344db9
 
 lookup2 ``mix`` shift schedule {13, 8, 13, 12, 16, 5, 3, 10, 15}.
 """
@@ -34,9 +34,9 @@ RECORD_SIZE = 12
 def normalize(path):
     """Canonicalize a VFS path before hashing.
 
- Backslashes become forward slashes, the whole string is upper-cased, and
- trailing spaces are trimmed. Returns a ``str``.
- """
+    Backslashes become forward slashes, the whole string is upper-cased, and
+    trailing spaces are trimmed.  Returns a ``str``.
+    """
     s = path.replace("\\", "/")
     s = s.upper()
     s = s.rstrip(" ")
@@ -59,11 +59,11 @@ def _mix(a, b, c):
 
 def path_hash(path, seed=DEFAULT_SEED):
     """Bob Jenkins lookup2 hash of ``path`` (already-normalized ``str`` or
- raw ``bytes``), seeded with ``seed`` (the engine uses ``0x04C11DB7``).
+    raw ``bytes``), seeded with ``seed`` (the engine uses ``0x04C11DB7``).
 
- Returns a 32-bit unsigned int. Callers that want the canonical VFS hash
- should pass ``normalize(path)``.
- """
+    Returns a 32-bit unsigned int.  Callers that want the canonical VFS hash
+    should pass ``normalize(path)``.
+    """
     if isinstance(path, str):
         data = path.encode("latin-1")
     else:
@@ -87,7 +87,7 @@ def path_hash(path, seed=DEFAULT_SEED):
     # tail: fold remaining 0..11 bytes; c picks up the length (lookup2 quirk:
     # the length is added to c *before* the tail switch).
     c = (c + length) & U32
-    # remaining bytes from i.. i+n-1
+    # remaining bytes from i .. i+n-1
     if n >= 11: c = (c + (data[i + 10] << 24)) & U32
     if n >= 10: c = (c + (data[i + 9] << 16)) & U32
     if n >= 9:  c = (c + (data[i + 8] << 8)) & U32
@@ -132,9 +132,9 @@ class VfsRecord:
 class VfsTable:
     """A VFS path-hash index table.
 
- Records are kept sorted ascending by ``hash`` at all times so the table can
- be binary-searched (and serialized) exactly as the engine expects.
- """
+    Records are kept sorted ascending by ``hash`` at all times so the table can
+    be binary-searched (and serialized) exactly as the engine expects.
+    """
 
     def __init__(self, seed=DEFAULT_SEED):
         self.seed = seed & U32
@@ -157,8 +157,8 @@ class VfsTable:
     def add(self, path, lbn, size):
         """Hash ``path`` and insert a record, keeping the table hash-sorted.
 
- Returns the created :class:`VfsRecord`.
- """
+        Returns the created :class:`VfsRecord`.
+        """
         h = self.hash_of(path)
         rec = VfsRecord(h, lbn, size, path=path)
         # insertion sort by hash (stable for equal hashes -> insertion order)
@@ -190,9 +190,9 @@ class VfsTable:
         return -1
 
     def lookup(self, path):
-        """Look a path up by hash. Returns the matching :class:`VfsRecord` or
- ``None``. If multiple records collide on the same hash, the first
- inserted is returned."""
+        """Look a path up by hash.  Returns the matching :class:`VfsRecord` or
+        ``None``.  If multiple records collide on the same hash, the first
+        inserted is returned."""
         h = self.hash_of(path)
         idx = self._find_index(h)
         return self._records[idx] if idx != -1 else None
@@ -208,10 +208,10 @@ class VfsTable:
     def from_bytes(cls, data, seed=DEFAULT_SEED):
         """Parse a flat ``{hash,lbn,size}`` record array back into a table.
 
- The records are assumed already hash-sorted (they are re-sorted to be
- safe). Source paths are unknown, so ``lookup`` by path will only work
- for entries re-``add``-ed with their path.
- """
+        The records are assumed already hash-sorted (they are re-sorted to be
+        safe).  Source paths are unknown, so ``lookup`` by path will only work
+        for entries re-``add``-ed with their path.
+        """
         t = cls(seed=seed)
         n = len(data) // RECORD_SIZE
         recs = []

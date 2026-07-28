@@ -1,4 +1,4 @@
-"""XTX - the original publisher Leeds PSP texture (GTA: the source console title).
+"""XTX - the original publisher Leeds PSP texture (the source console title).
 
 An XTX file is the shared 0x20-byte 'tex' (0x00746578) relocatable container
 (see gvcslib.container) followed by one (single-texture) or many (dictionary)
@@ -7,26 +7,26 @@ offset 0.
 
 Single-texture, 8bpp palettized layout (the byte-exact target of this codec):
 
- +0x00 0x20-byte container header
- ... one texture descriptor (in-header for SPLASH1; in a footer block
- after the palette for the LOADSC*/MPLOAD* "raw" variant)
- pix_off .. pix_off + W*H PSP-swizzled 8bpp index pixels
- pix_off + W*H .. + 0x400 256 * RGBA8888 palette (alpha LAST byte)
- reloc_off u32 fixup-site list (reloc_count entries)
+    +0x00  0x20-byte container header
+    ...    one texture descriptor (in-header for SPLASH1; in a footer block
+           after the palette for the LOADSC*/MPLOAD* "raw" variant)
+    pix_off .. pix_off + W*H        PSP-swizzled 8bpp index pixels
+    pix_off + W*H .. + 0x400         256 * RGBA8888 palette (alpha LAST byte)
+    reloc_off                        u32 fixup-site list (reloc_count entries)
 
 The texture descriptor is located generically via the relocation table: the
 LAST reloc site (index reloc_count-1) is the offset of the descriptor's
 ``pix_off`` field (a relocated pointer to the pixel data). At that field:
 
- +0x00 u32 pix_off (absolute payload offset of the pixels)
- +0x06 u8 W exponent (width = 1 << byte)
- +0x07 u8 H exponent (height = 1 << byte)
+    +0x00  u32  pix_off   (absolute payload offset of the pixels)
+    +0x06  u8   W exponent (width  = 1 << byte)
+    +0x07  u8   H exponent (height = 1 << byte)
 
 PSP 8bpp swizzle: pixels are stored as 16-byte-wide x 8-row blocks, blocks
 laid out left-to-right then top-to-bottom, each block stored as 8 contiguous
 16-byte rows.
 
-decode(data) -> Texture(w, h, indices, palette, ...). encode(tex) -> bytes,
+decode(data) -> Texture(w, h, indices, palette, ...).  encode(tex) -> bytes,
 byte-exact for the single-texture variants by preserving every non-pixel byte
 verbatim and only re-swizzling the index plane back into the pixel region.
 
@@ -83,14 +83,14 @@ def swizzle(src, w, h):
 class Texture:
     """A single decoded XTX texture.
 
- Attributes:
- w, h: pixel dimensions.
- indices: bytes, length w*h, UN-swizzled 8bpp palette indices (row-major).
- palette: bytes, 256*4 RGBA8888 (alpha is the LAST byte of each entry).
- pix_off: payload offset of the (swizzled) pixel plane.
- desc_off: payload offset of the descriptor pix_off field.
- raw: the original whole-file bytes (preserved for byte-exact encode).
- """
+    Attributes:
+        w, h:       pixel dimensions.
+        indices:    bytes, length w*h, UN-swizzled 8bpp palette indices (row-major).
+        palette:    bytes, 256*4 RGBA8888 (alpha is the LAST byte of each entry).
+        pix_off:    payload offset of the (swizzled) pixel plane.
+        desc_off:   payload offset of the descriptor pix_off field.
+        raw:        the original whole-file bytes (preserved for byte-exact encode).
+    """
 
     def __init__(self, w, h, indices, palette, pix_off, desc_off, raw):
         self.w = w
@@ -125,9 +125,9 @@ class Texture:
 def _read_descriptor(data):
     """Locate the single-texture descriptor via the reloc table.
 
- Returns (pix_off, w, h, desc_off). Raises ValueError for the dictionary
- variant or anything that does not look like a single 8bpp texture.
- """
+    Returns (pix_off, w, h, desc_off). Raises ValueError for the dictionary
+    variant or anything that does not look like a single 8bpp texture.
+    """
     c = Container.load(data)
     if c.magic != MAGIC_TEX:
         raise ValueError("not an XTX 'tex' container: magic=0x%08x" % c.magic)
@@ -160,10 +160,10 @@ def decode(data):
 def encode(tex):
     """Re-encode a Texture to whole-file bytes.
 
- Byte-exact for the single-texture variants: every non-pixel byte (header,
- descriptor, palette region, footer, reloc table) is preserved from
- ``tex.raw``; only the swizzled pixel plane is rebuilt from ``tex.indices``.
- """
+    Byte-exact for the single-texture variants: every non-pixel byte (header,
+    descriptor, palette region, footer, reloc table) is preserved from
+    ``tex.raw``; only the swizzled pixel plane is rebuilt from ``tex.indices``.
+    """
     out = bytearray(tex.raw)
     pix = swizzle(tex.indices, tex.w, tex.h)
     out[tex.pix_off:tex.pix_off + tex.w * tex.h] = pix

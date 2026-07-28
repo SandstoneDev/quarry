@@ -2,21 +2,21 @@
 """Drive the decoded-the source game -> PSP v2 `.pmap` back-end for a region (or --all).
 
 Pipeline (sibling modules, none edited):
- sa_ipl placements (model_id, pos, rot-quat xyzw, interior)
- sa_ide model_id -> ObjDef(.dff, .txd, section, flags, draw_dist, ...)
- - objs AND tobj AND anim; read the RESOLVED attributes, the three
- sections do not share a column layout
- sa_dff .dff blob -> SaModel{meshes[], materials[{texture_name,color}]}
- sa_txd .txd blob -> {name: (w, h, rgba8888_bytes)}
- psp_mesh.pack_model SaModel -> compact GE int16 prims (per material)
- psp_tex.author_psp_texture RGBA8888 -> swizzled T8/T4 plane + linear CLUT
- psp_scene.write_scene welds vertex/index/texel/clut POOLS + model/
- submesh/texture/instance tables + XY zone grid
- into one streamable little-endian v2 `.pmap`
- the C engine (work/psp_engine) draws verbatim.
+    sa_ipl   placements (model_id, pos, rot-quat xyzw, interior)
+    sa_ide   model_id -> ObjDef(.dff, .txd, section, flags, draw_dist, ...)
+             - objs AND tobj AND anim; read the RESOLVED attributes, the three
+             sections do not share a column layout
+    sa_dff   .dff blob -> SaModel{meshes[], materials[{texture_name,color}]}
+    sa_txd   .txd blob -> {name: (w, h, rgba8888_bytes)}
+    psp_mesh.pack_model        SaModel -> compact GE int16 prims (per material)
+    psp_tex.author_psp_texture RGBA8888 -> swizzled T8/T4 plane + linear CLUT
+    psp_scene.write_scene      welds vertex/index/texel/clut POOLS + model/
+                               submesh/texture/instance tables + XY zone grid
+                               into one streamable little-endian v2 `.pmap`
+                               the C engine (work/psp_engine) draws verbatim.
 
 Each psp_mesh prim becomes one Submesh referencing the texture authored for that
-material (deduplicated by texture name across the whole export). Coordinates
+material (deduplicated by texture name across the whole export).  Coordinates
 stay in the source game native space (Z-up, XY ground) - the viewer is Z-up.
 
 IDE `anim` rows are CAnimatedBuilding clumps (a revolving LV sign, a windmill).
@@ -27,13 +27,13 @@ build_grid_pmaps writes as the per-region `.spin` sidecar, so no animation data
 ever ships.
 
 IDE `tobj` rows are time-of-day models (neon, lit-window overlays, the _dy/_nt
-swap pairs) that exist only inside an hour window. Their geometry bakes like any
+swap pairs) that exist only inside an hour window.  Their geometry bakes like any
 other model; the window itself rides the per-region `.tobj` sidecar, keyed by the
 INSTANCE index - the engine hides a listed instance outside its hours.
 
 Run:
- cd gvcslib && PYTHONPATH=. python gvcslib/work/sa_export_pmap.py # LA bbox
- cd gvcslib && PYTHONPATH=. python gvcslib/work/sa_export_pmap.py --all # whole map
+    cd gvcslib && PYTHONPATH=. python gvcslib/work/sa_export_pmap.py        # LA bbox
+    cd gvcslib && PYTHONPATH=. python gvcslib/work/sa_export_pmap.py --all  # whole map
 """
 from __future__ import annotations
 
@@ -67,7 +67,7 @@ def _pow2_ok(w, h):
 
 def _downscale(rgba, w, h, maxdim):
     """Downscale an RGBA image so max(w,h) <= maxdim, halving (keeps pow2).
- Returns (w2, h2, rgba2). No-op if already small enough or maxdim<=0."""
+    Returns (w2, h2, rgba2).  No-op if already small enough or maxdim<=0."""
     if maxdim <= 0 or (w <= maxdim and h <= maxdim):
         return w, h, rgba
     from PIL import Image
@@ -82,11 +82,11 @@ def _downscale(rgba, w, h, maxdim):
 
 def _dilate_rgb(rgba, w, h, passes=4):
     """Flood opaque RGB into transparent texels (alpha<128). PS2 stores a black
- RGB under transparent alpha; PSP bilinear filtering blends that black into the
- leaf/wire EDGE -> a dark fringe / dirty speckle on foliage. Bleeding the
- neighbour's opaque colour outward means the filter samples leaf-green either
- side of the cutout edge instead of leaf+black. Alpha is UNCHANGED (the cutout
- shape stays exact); only the invisible RGB under transparent texels is filled."""
+    RGB under transparent alpha; PSP bilinear filtering blends that black into the
+    leaf/wire EDGE -> a dark fringe / dirty speckle on foliage. Bleeding the
+    neighbour's opaque colour outward means the filter samples leaf-green either
+    side of the cutout edge instead of leaf+black. Alpha is UNCHANGED (the cutout
+    shape stays exact); only the invisible RGB under transparent texels is filled."""
     import numpy as np
     a = np.frombuffer(rgba, np.uint8).reshape(h, w, 4).copy()
     op = a[:, :, 3] >= 128
@@ -108,8 +108,8 @@ def _dilate_rgb(rgba, w, h, passes=4):
 def _make_texture(tex: dict) -> psp_scene.Texture:
     """Wrap an author_psp_texture() dict into a psp_scene.Texture (v2).
 
- texel_bytes may hold a whole mip chain, so derive the LEVEL-0 buffer width
- from the pixel width (not from the byte length)."""
+    texel_bytes may hold a whole mip chain, so derive the LEVEL-0 buffer width
+    from the pixel width (not from the byte length)."""
     w = tex["width"]
     if tex["gu_pixfmt"] == psp_tex.GU_PSM_T8:
         buffer_width = w                     # 1 byte/texel, stride == w
@@ -127,9 +127,11 @@ def _make_texture(tex: dict) -> psp_scene.Texture:
 
 def _decal_edge_fade(rgba, w, h, margin=0.08):
     """Fade a decal texture's alpha to 0 in the outer `margin` ring so the coplanar
- decal QUAD leaves no hard rectangular edge on the surface it overlays . Content near the centre is untouched;
- only the outermost ~`margin` fraction of the texture ramps the alpha down to 0 at
- the very edge. Returns new RGBA bytes (same length)."""
+    decal QUAD leaves no hard rectangular edge on the surface it overlays: without
+    this the mesh border of the semi-transparent plane is visible in game. Content
+    near the centre is untouched; only the outermost ~`margin` fraction of the
+    texture ramps the alpha down to 0 at the very edge. Returns new RGBA bytes
+    (same length)."""
     import numpy as np
     a = np.frombuffer(bytes(rgba), np.uint8).reshape(h, w, 4).astype(np.float32)
     mx = max(1.0, w * margin)
@@ -145,16 +147,16 @@ def _decal_edge_fade(rgba, w, h, margin=0.08):
 
 def _rot_is_identity(r, eps=1e-4):
     """3x3 row-major identity within float-stream noise (a stock DFF stores
- 1.0 as 0.99999994 often enough that an exact compare rejects half the
- LV signs)."""
+    1.0 as 0.99999994 often enough that an exact compare rejects half the
+    LV signs)."""
     return all(abs(r[k] - (1.0 if k in (0, 4, 8) else 0.0)) <= eps
                for k in range(9))
 
 
 class _SubModel:
     """A slice of a decoded SaModel: the subset of meshes that hangs off one
- clump frame, sharing the parent model's material table. psp_mesh.pack_model
- and the submesh loop only ever touch .meshes / .materials."""
+    clump frame, sharing the parent model's material table.  psp_mesh.pack_model
+    and the submesh loop only ever touch .meshes / .materials."""
     __slots__ = ("meshes", "materials")
 
     def __init__(self, meshes, materials):
@@ -164,10 +166,10 @@ class _SubModel:
 def _bake_clump_frames(model):
     """Move every remaining mesh from its clump-frame space into MODEL space.
 
- ONLY for IDE `anim` models: CFileLoader keeps a CClumpModelInfo's frame tree,
- so a static atomic really does sit at its frame's offset. An ATOMIC model
- (objs/tobj) must NOT get this - SetRelatedModelInfoCB hands it a brand-new
- identity frame, so its authored offset is not part of the in-game model."""
+    ONLY for IDE `anim` models: CFileLoader keeps a CClumpModelInfo's frame tree,
+    so a static atomic really does sit at its frame's offset.  An ATOMIC model
+    (objs/tobj) must NOT get this - SetRelatedModelInfoCB hands it a brand-new
+    identity frame, so its authored offset is not part of the in-game model."""
     for mesh in model.meshes:
         ltm = getattr(mesh, "frame_ltm", None)
         if not ltm:
@@ -182,11 +184,11 @@ def _bake_clump_frames(model):
 def _inst_rot(quat):
     """Row-major 3x3 with v_world = R @ v_local for an IPL instance quaternion.
 
- MIRRORS the engine's build_inst_rot (src/game_sa/Renderer.c) exactly, fast
- path included: SA's CFileLoader::CreateEntityFromInstance stores the
- CONJUGATE, and near-vertical objects take a yaw-only branch that drops the
- small qx/qy. A split animated atomic is placed at pos + R*framePos, so if
- this disagreed with the engine the sign would drift off its pole."""
+    MIRRORS the engine's build_inst_rot (src/game_sa/Renderer.c) exactly, fast
+    path included: SA's CFileLoader::CreateEntityFromInstance stores the
+    CONJUGATE, and near-vertical objects take a yaw-only branch that drops the
+    small qx/qy.  A split animated atomic is placed at pos + R*framePos, so if
+    this disagreed with the engine the sign would drift off its pole."""
     qx, qy, qz, qw = quat
     if abs(qx) <= 0.05 and abs(qy) <= 0.05:
         n = qz * qz + qw * qw
@@ -212,22 +214,22 @@ def _inst_rot(quat):
 def _split_animated(model, spins, verbose=False, tag=""):
     """Pull the rotating atomics out of a CAnimatedBuilding clump.
 
- Removes them from `model.meshes` (so the caller can bake the frame matrix
- into everything that stays) and returns [(spin, frame_offset, meshes)].
+    Removes them from `model.meshes` (so the caller can bake the frame matrix
+    into everything that stays) and returns [(spin, frame_offset, meshes)].
 
- `spins` = {frame_name_lower: (axis, mode, rate, amp)} from the model's IFP
- clip. An animated atomic only earns its own model+instance when a per-
- INSTANCE matrix tweak can actually reproduce it - the same shape as the
- existing .sway hook, no per-submesh matrix switching:
+    `spins` = {frame_name_lower: (axis, mode, rate, amp)} from the model's IFP
+    clip.  An animated atomic only earns its own model+instance when a per-
+    INSTANCE matrix tweak can actually reproduce it - the same shape as the
+    existing .sway hook, no per-submesh matrix switching:
 
- * nothing else animated in its parent chain, and nothing animated below it
- (a nested rotator needs two matrices; the pumpjacks are that, phase 2);
- * its local-to-model rotation is identity, so the model keeps frame-local
- vertices, the .spin axis stays the clip's own axis and the instance
- offset is just the frame translation.
+      * nothing else animated in its parent chain, and nothing animated below it
+        (a nested rotator needs two matrices; the pumpjacks are that, phase 2);
+      * its local-to-model rotation is identity, so the model keeps frame-local
+        vertices, the .spin axis stays the clip's own axis and the instance
+        offset is just the frame translation.
 
- Everything that fails stays in the static model with its frame matrix baked
- - position-correct, simply not moving."""
+    Everything that fails stays in the static model with its frame matrix baked
+    - position-correct, simply not moving."""
     frames = getattr(model, "frames", None)
     if not frames or not spins:
         return []
@@ -248,7 +250,7 @@ def _split_animated(model, spins, verbose=False, tag=""):
         for p in chain(i):
             if p in anim_idx:
                 nested.add(i)        # animated under an animated frame
-                nested.add(p)        #... and the frame it hangs off
+                nested.add(p)        # ... and the frame it hangs off
     eligible = {}
     for i in sorted(anim_idx):
         f = frames[i]
@@ -328,15 +330,15 @@ def build_pmap(root, bbox, *, no_interior=True, cell_size=400.0,
 
     def author_named(name, txd, txd_name, tmax=None):
         """Author (or fetch cached) a texture by (TXD, material name); return
- its index, or -1 if it can't be resolved/authored.
+        its index, or -1 if it can't be resolved/authored.
 
- Keyed by (txd, name) NOT name alone: SA reuses the same texture name in
- different TXDs for DIFFERENT images (~35% of names collide), so a
- name-only cache puts the wrong texture on ~a third of surfaces.
+        Keyed by (txd, name) NOT name alone: SA reuses the same texture name in
+        different TXDs for DIFFERENT images (~35% of names collide), so a
+        name-only cache puts the wrong texture on ~a third of surfaces.
 
- tmax overrides the global tex_max for this texture (ground/road surfaces
- tile ~1x so they want a higher cap than walls/props); the cache key
- includes it so the same image can exist at two resolutions."""
+        tmax overrides the global tex_max for this texture (ground/road surfaces
+        tile ~1x so they want a higher cap than walls/props); the cache key
+        includes it so the same image can exist at two resolutions."""
         if tmax is None:
             tmax = tex_max
         nm = (name or "").strip().lower()
@@ -388,16 +390,26 @@ def build_pmap(root, bbox, *, no_interior=True, cell_size=400.0,
         # dark gate keeps this off glass/foliage/effects -> no pink junk-quad regression.
         # DECIDED BEFORE authoring so the alpha can be EDGE-FADED: a coplanar decal quad
         # whose ink/background reaches the texture border otherwise shows its rectangular
-        # MESH edge on the surface below.
+        # MESH edge on the surface below, which is visible in game.
         alphas = rgba[3::4]
         opaque_frac = (sum(x >= 240 for x in alphas) / len(alphas)) if alphas else 1.0
+        # A decal is SPARSE ink over a surface that still has to show through. opaque_frac
+        # only counts a>=240, so a broadly SEMI-opaque sheet - a baked shadow, a dirt
+        # overlay - scores 0% opaque and used to pass this gate. On the decal path it then
+        # gets the forward depth bias and the alpha test that keeps only its darkest core,
+        # which reads as a black patch on the very wall it was meant to shade. Measured on a
+        # full-map bake: 21 of 152 amode-3 textures covered more than 40% of their own area
+        # at a>=64, up to 88%, including 64x64 masks that are pure black at alpha 114 across
+        # 82% of the image and sit on house-sized models. Require sparseness explicitly.
+        covered_frac = (sum(x >= 64 for x in alphas) / len(alphas)) if alphas else 1.0
         rgbset = set()
         for i in range(0, len(rgba), 4):
             rgbset.add(bytes(rgba[i:i + 3]))
             if len(rgbset) > 2:
                 break
         pure_dark = len(rgbset) <= 2
-        is_decal_tex = ("crack" in nm) or (opaque_frac < 0.10 and (pure_dark or nm in _decal))
+        is_decal_tex = ("crack" in nm) or (opaque_frac < 0.10 and covered_frac < 0.40
+                                           and (pure_dark or nm in _decal))
         if is_decal_tex:
             rgba = _decal_edge_fade(rgba, w, h)     # fade alpha->0 at the quad border
         try:
@@ -418,7 +430,7 @@ def build_pmap(root, bbox, *, no_interior=True, cell_size=400.0,
 
     def emit_model(sub, d, txd, is_lod, is_decal, spin=None):
         """Pack one model (or one split-off piece of a clump) and append it to
- the scene tables. Returns its index, or None when it packs to nothing."""
+        the scene tables.  Returns its index, or None when it packs to nothing."""
         try:
             packed = psp_mesh.pack_model(sub)
         except Exception:
@@ -440,10 +452,10 @@ def build_pmap(root, bbox, *, no_interior=True, cell_size=400.0,
                 _decal.add(name.strip().lower())
             # A big PLANAR surface whose texture maps ~1x (road, skate ramp,
             # river embankment, lot) needs more texels than a tiled wall: at a
-            # 128px cap it reads as "stretched/blurry". Detect it PER-SUBMESH
+            # 128px cap it reads as "stretched/blurry".  Detect it PER-SUBMESH
             # and orientation-INDEPENDENTLY (ramps are sloped, so the old "flat"
             # test missed them): the 2nd-largest extent is big (it's a plane,
-            # not a pole) AND the texture repeats < ~2.5x. Tiled walls keep 128.
+            # not a pole) AND the texture repeats < ~2.5x.  Tiled walls keep 128.
             gtmax = tex_max
             if tex_max:
                 vb = prim["vertex_bytes"]; nv = len(vb) // 12
@@ -460,7 +472,7 @@ def build_pmap(root, bbox, *, no_interior=True, cell_size=400.0,
                     # UPPER BOUND 40m: huge meshes (channel floor/walls 80-141m, LOD
                     # proxies) gain almost nothing from 256 (still ~2px/m) but cost
                     # RAM -> they bloated the working set and crashed real HW by
-                    # heap fragmentation. Only MEDIUM 1x surfaces (roads, ramps,
+                    # heap fragmentation.  Only MEDIUM 1x surfaces (roads, ramps,
                     # lots) get the upgrade, where 256 actually sharpens them.
                     if 6.0 < planar < 40.0 and tiles < 2.5:
                         gtmax = min(256, tex_max * 2)
@@ -605,7 +617,7 @@ def build_pmap(root, bbox, *, no_interior=True, cell_size=400.0,
             ))
         # a rotating atomic rides its own instance, parked at the clump frame's
         # world position (pos + R*framePos) with the SAME rotation - so its model
-        # vertices stay frame-local and the engine's.spin turn about the model
+        # vertices stay frame-local and the engine's .spin turn about the model
         # origin is exactly the turn the IFP describes.
         for midx, off in anim_split.get(i.model_id, ()):
             r = _inst_rot(i.rot)
@@ -643,14 +655,14 @@ REGION_MAGIC = b"PRGN"
 def build_grid_pmaps(scene_models, scene_textures, scene_instances,
                      out_dir, region_size, cell_size, verbose=True):
     """Slice the global scene into square region tiles of `region_size` world
- units; write one `region_<rx>_<ry>.pmap` per non-empty tile + a `regions.bin`
- manifest the engine reads to map a camera position -> region tile.
+    units; write one `region_<rx>_<ry>.pmap` per non-empty tile + a `regions.bin`
+    manifest the engine reads to map a camera position -> region tile.
 
- Each region .pmap holds ONLY the instances whose XY centre is in the tile,
- the models they reference and the textures those models reference, all
- re-indexed to dense LOCAL tables. Texel bytes are duplicated across tiles on
- purpose: a tiny resident prefix per region is the whole point (frees the
- ~24MB user heap for the streaming cache); disk cost is irrelevant."""
+    Each region .pmap holds ONLY the instances whose XY centre is in the tile,
+    the models they reference and the textures those models reference, all
+    re-indexed to dense LOCAL tables.  Texel bytes are duplicated across tiles on
+    purpose: a tiny resident prefix per region is the whole point (frees the
+    ~24MB user heap for the streaming cache); disk cost is irrelevant."""
     os.makedirs(out_dir, exist_ok=True)
     xs = [i.pos[0] for i in scene_instances]
     ys = [i.pos[1] for i in scene_instances]
@@ -713,7 +725,7 @@ def build_grid_pmaps(scene_models, scene_textures, scene_instances,
                                      local_insts, grid)
         with open(os.path.join(out_dir, "region_%d_%d.pmap" % (rx, ry)), "wb") as f:
             f.write(data)
-        #.sway sidecar (per-region, keyed by LOCAL model index): the engine matrix-
+        # .sway sidecar (per-region, keyed by LOCAL model index): the engine matrix-
         # shears wind-sway trees/palms. {sway_class i32 (0/1/2), sway_min_z f32 (base
         # pivot)} per local model. Only emitted when the tile has any sway model, so
         # most tiles have no file and the engine simply skips the shear there.
@@ -724,11 +736,11 @@ def build_grid_pmaps(scene_models, scene_textures, scene_instances,
                 sw += struct.pack("<if", int(m.sway_class), float(m.sway_min_z))
             with open(os.path.join(out_dir, "region_%d_%d.sway" % (rx, ry)), "wb") as f:
                 f.write(sw)
-        #.anim sidecar (animated-texture UV-scroll, 'UVSC' + count + count x {u32
+        # .anim sidecar (animated-texture UV-scroll, 'UVSC' + count + count x {u32
         # global_submesh_index, f32 du_dt, f32 dv_dt}). The global submesh index is
         # model-major (write_scene order) == the engine's w->submeshes[i]. Sparse:
         # only animated submeshes; the file exists only where a tile has any (LV/LS
-        # neon + waterfalls; Grove has none). Engine skips a tile with no.anim.
+        # neon + waterfalls; Grove has none). Engine skips a tile with no .anim.
         anim_recs = []
         gsi = 0
         for lm in local_models:
@@ -736,13 +748,13 @@ def build_grid_pmaps(scene_models, scene_textures, scene_instances,
                 if sm.uvscroll:
                     anim_recs.append((gsi, sm.uvscroll[0], sm.uvscroll[1]))
                 gsi += 1
-        #.spin sidecar (per-region, keyed by LOCAL model index like.sway): the SA
+        # .spin sidecar (per-region, keyed by LOCAL model index like .sway): the SA
         # CAnimatedBuilding rotators (LV/SF/LS revolving signs, windmills, the A51
         # radar) that build_pmap split off their clump. 'SPIN' + u32 model_count +
         # count x {u8 axis 0=X/1=Y/2=Z, u8 mode 0=spin/1=swing, u16 pad, f32
         # rate_deg_per_sec, f32 amplitude_deg} = 12 B/record - the natural C
         # layout, so the engine can fread straight into a PmapSpin[] like it does
-        # for.sway (the two u8s alone would leave the floats 2-byte aligned, which
+        # for .sway (the two u8s alone would leave the floats 2-byte aligned, which
         # the PSP cannot load). phase = rate*t; spin -> angle = phase (amplitude
         # unused), swing -> angle = amplitude*sin(phase). No pivot: the split model's
         # vertices are frame-local, so the turn is about its own origin. Only written
@@ -763,10 +775,10 @@ def build_grid_pmaps(scene_models, scene_textures, scene_instances,
                                   float(rate), float(amp))
             with open(os.path.join(out_dir, "region_%d_%d.spin" % (rx, ry)), "wb") as f:
                 f.write(sp)
-        #.tobj sidecar (SA IDE time-of-day models: neon, lit windows, _dy/_nt
+        # .tobj sidecar (SA IDE time-of-day models: neon, lit windows, _dy/_nt
         # swaps). 'TOBJ' + u32 count + count x {u16 instance, u8 on, u8 off} = the
         # engine's PmapTobj[], fread straight in. Keyed by the INSTANCE index, NOT
-        # the local model index like.sway/.spin - the same model can stand in the
+        # the local model index like .sway/.spin - the same model can stand in the
         # tile several times and the render collect hides per instance. write_scene
         # has just STAMPED inst.cell and lays the instances out sorted by it, so
         # walk that same stable permutation to number them the way the file does.

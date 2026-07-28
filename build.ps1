@@ -200,9 +200,9 @@ if (Test-Path (Join-Path $GvcsInner "data")) {
     robocopy (Join-Path $GvcsInner "data") (Join-Path $Bakers "gvcslib\data") /E /NJH /NJS /NFL /NDL | Out-Null
 }
 # Trim gvcslib to the converter's format-parser closure. Drop (1) all of work/ except
-# sa_export_pmap (the only work module the world bake imports) and (2) the VCS-modding
-# half of the library (CLI/project/SA->VCS injection/zone tooling) - a separate project
-# not used by, and not shipped with, the GTA-SA converter. Verified: the 109 shipped
+# sa_export_pmap (the only work module the world bake imports) and (2) the modding half
+# of the library (CLI, project, cross-title injection and zone tooling) - a separate
+# project, not used by and not shipped with this converter. Verified: the 109 shipped
 # bakers all import cleanly after this trim.
 $GvWork = Join-Path $Bakers "gvcslib\work"
 if (Test-Path $GvWork) {

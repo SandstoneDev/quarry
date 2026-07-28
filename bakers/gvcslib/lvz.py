@@ -1,54 +1,54 @@
-"""LVZ streaming-directory codec (GTA: the source console title, PSP).
+"""LVZ streaming-directory codec (the source console title, PSP).
 
 A ``<ZONE>.LVZ`` file is a zlib-wrapped the original publisher Leeds relocatable chunk
-(magic ``DLRW``). Once inflated, the consumer root sits at ``payload + 0x20``
-(see :mod:`gvcslib.container`). The LVZ directs the engine's streaming system:
+(magic ``DLRW``).  Once inflated, the consumer root sits at ``payload + 0x20``
+(see :mod:`gvcslib.container`).  The LVZ directs the engine's streaming system:
 it tells the loader which byte ranges of the sibling ``<ZONE>.IMG`` file hold
 each resource and where on the world cell grid / texture grid they live.
 
-This is a *decode / enumerate* codec. The payload is fully relocated in place
+This is a *decode / enumerate* codec.  The payload is fully relocated in place
 by the engine (every pointer-sized fixup site has ``base`` added), so a
 byte-exact re-encode is meaningless for a relocated structure - the contract
-here is faithful enumeration, not round-trip. ``encode`` therefore returns the
+here is faithful enumeration, not round-trip.  ``encode`` therefore returns the
 original container payload unchanged (it is a relocated image; we do not rebuild
 relocations), which keeps a payload-level identity for callers that want it.
 
 Layout (all offsets relative to ``root = payload + 0x20``; all pointers are
 payload-relative u32 fixup sites, i.e. file ``base == 0``):
 
- root + 0x000 u32 master resource-record array base
- root + 0x004 .. cell-grid rows: {u32 ptr, u32 count} pairs, stride 8,
- running up to root + 0x12c
- root + 0x12c u32 master resource count
- (BEACH 5917 / MALL 770 / MAINLA 6167)
- root + 0x2d0 u32 texture-grid entry count
- root + 0x2d4 u32 texture-grid array pointer
+    root + 0x000  u32  master resource-record array base
+    root + 0x004  ..   cell-grid rows: {u32 ptr, u32 count} pairs, stride 8,
+                       running up to root + 0x12c
+    root + 0x12c  u32  master resource count
+                       (BEACH 5917 / MALL 770 / MAINLA 6167)
+    root + 0x2d0  u32  texture-grid entry count
+    root + 0x2d4  u32  texture-grid array pointer
 
 Master resource record (stride 0x0c, ``master_count`` of them):
- +0x00 u32 desc_ptr payload offset of the resource header (0 = empty slot)
- +0x04 u32 runtime always 0 on disk
- +0x08 u32 index resource index (0xFFFFFFFF = empty slot)
+    +0x00 u32  desc_ptr   payload offset of the resource header (0 = empty slot)
+    +0x04 u32  runtime    always 0 on disk
+    +0x08 u32  index      resource index (0xFFFFFFFF = empty slot)
 
 Streaming descriptor (0x20 bytes, magic ``DLRW``, packed in one contiguous
 array inside the payload):
- +0x00 u32 magic 'DLRW'
- +0x08 u32 read_size bytes to read from the IMG
- +0x0c u32 mem_size bytes the resource occupies in RAM once decoded
- +0x18 u32 img_offset byte offset into the sibling IMG file
+    +0x00 u32  magic 'DLRW'
+    +0x08 u32  read_size  bytes to read from the IMG
+    +0x0c u32  mem_size   bytes the resource occupies in RAM once decoded
+    +0x18 u32  img_offset byte offset into the sibling IMG file
 
 Texture-grid entry (stride 0x10):
- +0x00 u16 x grid column
- +0x02 u16 y grid row
- +0x04 u32 img_offset byte offset into the IMG
- +0x08 u32 size bytes in the IMG
- +0x0c u32 count texture count for this cell
+    +0x00 u16  x          grid column
+    +0x02 u16  y          grid row
+    +0x04 u32  img_offset byte offset into the IMG
+    +0x08 u32  size       bytes in the IMG
+    +0x0c u32  count      texture count for this cell
 
 EMPIRICAL NOTE on alignment: the engine's typical streaming chunks are
 2 KiB (0x800) page-aligned in the IMG, but a small minority of tightly-packed
-chunks sit at 4-byte (sub-page) offsets. The load-bearing invariant the engine
+chunks sit at 4-byte (sub-page) offsets.  The load-bearing invariant the engine
 actually relies on - and the one this module guarantees / tests - is
 ``img_offset + read_size <= IMG file size`` for every descriptor, with every
-offset at least 4-byte aligned. ``StreamDescriptor.is_page_aligned`` exposes
+offset at least 4-byte aligned.  ``StreamDescriptor.is_page_aligned`` exposes
 the 2 KiB check per descriptor.
 """
 import struct
@@ -214,7 +214,7 @@ def _read_records(p, root):
 
 def _read_cell_grid(p, root):
     """The cell grid is a flat array of {ptr, count} pairs (stride 8) starting
- at root+0x04 and running up to the master-count field at root+0x12c."""
+    at root+0x04 and running up to the master-count field at root+0x12c."""
     rows = []
     o = root + OFF_CELLGRID
     end = root + OFF_MASTER_COUNT
@@ -241,10 +241,10 @@ def _read_tex_grid(p, root):
 def _find_descriptor_block(p):
     """Locate the single contiguous run of 0x20-byte 'DLRW' descriptors.
 
- The payload itself starts with a 'DLRW' header at offset 0; the streaming
- descriptor array is the first further run of DLRW magics packed at a 0x20
- stride. Returns (block_offset, count).
- """
+    The payload itself starts with a 'DLRW' header at offset 0; the streaming
+    descriptor array is the first further run of DLRW magics packed at a 0x20
+    stride.  Returns (block_offset, count).
+    """
     magic = struct.pack("<I", MAGIC_DLRW)
     # find the start of the descriptor array: the first DLRW magic at offset
     # >= 4 that is immediately followed by another DLRW one DESC_SIZE later
@@ -285,10 +285,10 @@ def _read_descriptors(p):
 def decode(data):
     """Decode an LVZ file (raw bytes, zlib-wrapped or already inflated payload).
 
- Returns an :class:`Lvz` exposing ``resources``, ``streaming_descriptors``
- (each with ``.offset`` / ``.size`` / ``.memsize``), ``cell_grid`` and
- ``tex_grid``.
- """
+    Returns an :class:`Lvz` exposing ``resources``, ``streaming_descriptors``
+    (each with ``.offset`` / ``.size`` / ``.memsize``), ``cell_grid`` and
+    ``tex_grid``.
+    """
     if isinstance(data, Container):
         container = data
     else:
@@ -308,12 +308,12 @@ def decode(data):
 def encode(obj):
     """Return the (relocated) container payload bytes.
 
- LVZ is a fully-relocated image: pointers have already had ``base`` folded
- in and the on-disk fixup list is consumed at load time. We do not rebuild
- relocations, so ``encode`` simply hands back the inflated payload. At the
- payload level ``encode(decode(x))`` reproduces the original payload bytes;
- to make an engine-loadable file again, re-deflate with ``Container.deflate``.
- """
+    LVZ is a fully-relocated image: pointers have already had ``base`` folded
+    in and the on-disk fixup list is consumed at load time.  We do not rebuild
+    relocations, so ``encode`` simply hands back the inflated payload.  At the
+    payload level ``encode(decode(x))`` reproduces the original payload bytes;
+    to make an engine-loadable file again, re-deflate with ``Container.deflate``.
+    """
     if isinstance(obj, Lvz):
         return obj.payload
     if isinstance(obj, Container):
