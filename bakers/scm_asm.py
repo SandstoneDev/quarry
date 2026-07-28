@@ -1,0 +1,152 @@
+#!/usr/bin/env python3
+"""SCM mini-assembler: text listing -> SA-chunk-format .scm bytecode.
+
+Usage: python scm_asm.py in.scm.txt out.scm
+Directives:
+  GLOBALS <n>     declare n int32 global slots (sizes the 's' chunk)
+  MAIN            begin the MAIN thread (emits SCRIPT_NAME "MAIN")
+  :label          define a label
+Operands:
+  $N   global int slot N   -> tag 2, byte offset GLOBAL_BASE + N*4
+  %N   local slot N        -> tag 3, index N
+  @lbl address of label    -> tag 1, absolute ScriptSpace offset
+  123  integer             -> smallest of tag 4/5/1
+  1.5  float               -> tag 6
+  "s"  short string        -> tag 9, 8 bytes null-padded/truncated
+"""
+import struct, sys
+from scm_opcodes import (OPCODES, TAG_INT32, TAG_GVAR, TAG_LVAR, TAG_INT8,
+                         TAG_INT16, TAG_FLOAT, TAG_STR8, GLOBAL_BASE)
+
+def _tokenize(line):
+    # split respecting quoted strings; strip ; and # comments
+    out, i, n = [], 0, len(line)
+    while i < n:
+        c = line[i]
+        if c in ";#":
+            break
+        if c.isspace():
+            i += 1; continue
+        if c == '"':
+            j = line.index('"', i + 1)
+            out.append(line[i:j + 1]); i = j + 1
+        else:
+            j = i
+            while j < n and not line[j].isspace():
+                j += 1
+            out.append(line[i:j]); i = j
+    return out
+
+def _emit_int(buf, val):
+    if -128 <= val <= 127:
+        buf += bytes([TAG_INT8]) + struct.pack("<b", val)
+    elif -32768 <= val <= 32767:
+        buf += bytes([TAG_INT16]) + struct.pack("<h", val)
+    else:
+        buf += bytes([TAG_INT32]) + struct.pack("<i", val)
+
+def _emit_operand(buf, tok, fixups, n_globals):
+    if tok.startswith("$"):
+        idx = int(tok[1:])
+        if idx >= n_globals:
+            raise ValueError("global $%d out of range (GLOBALS %d)" % (idx, n_globals))
+        off = GLOBAL_BASE + idx * 4
+        buf += bytes([TAG_GVAR]) + struct.pack("<H", off)
+    elif tok.startswith("%"):
+        buf += bytes([TAG_LVAR]) + struct.pack("<H", int(tok[1:]))
+    elif tok.startswith("@"):
+        # address: tag1 int32, patched in pass 2
+        buf += bytes([TAG_INT32])
+        fixups.append((len(buf), tok[1:]))
+        buf += struct.pack("<i", 0)
+    elif tok.startswith('"'):
+        s = tok[1:-1].encode("ascii")[:8]
+        s = s + b"\x00" * (8 - len(s))
+        buf += bytes([TAG_STR8]) + s
+    elif "." in tok:
+        buf += bytes([TAG_FLOAT]) + struct.pack("<f", float(tok))
+    else:
+        _emit_int(buf, int(tok, 0))
+
+def assemble_text(text):
+    """Back-compat: return only the bytecode."""
+    return _assemble(text)[0]
+
+def _assemble(text):
+    """Return (bytecode_bytes, {label_name: absolute_offset})."""
+    n_globals = 0
+    lines = []
+    for raw in text.splitlines():
+        toks = _tokenize(raw)
+        if not toks:
+            continue
+        if toks[0] == "GLOBALS":
+            n_globals = int(toks[1]); continue
+        lines.append(toks)
+
+    global_base_off = GLOBAL_BASE + n_globals * 4   # 's' chunk nextOffset
+    code = bytearray()
+    labels = {}
+    fixups = []   # (offset_in_code, label_name)
+
+    def code_off():
+        return global_base_off + len(code)
+
+    for toks in lines:
+        head = toks[0]
+        if head == "MAIN":
+            op, _ = OPCODES["SCRIPT_NAME"]
+            code += struct.pack("<H", op)
+            s = b"MAIN" + b"\x00" * 4
+            code += bytes([TAG_STR8]) + s
+            continue
+        if head.startswith(":"):
+            labels[head[1:]] = code_off(); continue
+        if head not in OPCODES:
+            raise ValueError("unknown mnemonic: " + head)
+        op, spec = OPCODES[head]
+        code += struct.pack("<H", op)
+        args = toks[1:]
+        if len(args) != len(spec):
+            raise ValueError(f"{head} expects {len(spec)} args, got {len(args)}")
+        for tok in args:
+            _emit_operand(code, tok, fixups, n_globals)
+
+    # pass 2: patch @label fixups (absolute ScriptSpace offsets)
+    for pos, name in fixups:
+        if name not in labels:
+            raise ValueError("undefined label: " + name)
+        struct.pack_into("<i", code, pos, labels[name])
+
+    # assemble the 's' chunk header + global space + code
+    out = bytearray()
+    out += bytes([0x02, 0x00, 0x01])
+    out += struct.pack("<I", global_base_off)
+    out += bytes([ord('s')])
+    out += bytes(n_globals * 4)          # zeroed global space
+    assert len(out) == global_base_off
+    out += code
+    return bytes(out), labels
+
+def main():
+    # usage: scm_asm.py in.scm.txt out.scm [syms_out.h]
+    with open(sys.argv[1], "r") as f:
+        scm, labels = _assemble(f.read())
+    with open(sys.argv[2], "wb") as f:
+        f.write(scm)
+    print(f"wrote {len(scm)} bytes -> {sys.argv[2]}")
+    if len(sys.argv) > 3:
+        # emit a C header of exported entry-point offsets. Export labels that start
+        # with 'e_' (entry) so ordinary jump labels don't pollute the symbol table.
+        guard = "SCM_SYMS_H"
+        with open(sys.argv[3], "w") as f:
+            f.write(f"/* auto-generated by scm_asm.py from {sys.argv[1]} */\n")
+            f.write(f"#ifndef {guard}\n#define {guard}\n")
+            for name, off in sorted(labels.items()):
+                if name.startswith("e_"):
+                    f.write(f"#define SCMSYM_{name[2:].upper()} {off}\n")
+            f.write(f"#endif\n")
+        print(f"wrote syms -> {sys.argv[3]}")
+
+if __name__ == "__main__":
+    main()

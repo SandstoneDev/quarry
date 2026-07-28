@@ -1,0 +1,16 @@
+# build outputs
+dist/
+.cache/
+
+# .NET
+bin/
+obj/
+*.user
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
