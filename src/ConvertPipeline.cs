@@ -608,6 +608,9 @@ public static class ConvertPipeline
 
     private static bool StepBakeAmbienceTracks(ConvertContext cx) =>
         StreamStep(cx, new[] { Path.Combine(cx.TempDir, "_streams_scratch"),
+                               "--no-stations",   // ambience only: this run used to overwrite
+                                                  // radio.bin with zero stations, and only the
+                                                  // step order kept the dial working
                                "--ambience", Path.Combine(cx.OutDir, "audio", "amb") },
                    "ambience tracks", false);
 
@@ -1041,7 +1044,12 @@ public static class ConvertPipeline
             bool take = p.StartsWith("AUDIO/CONFIG/") ||
                         (p.StartsWith("AUDIO/SFX/") && WantSfxPak(p)) ||
                         p == "DATA/MAPS/AUDIOZON.IPL" ||
-                        p == "AUDIO/STREAMS/AMBIENCE.PAK";
+                        p == "AUDIO/STREAMS/AMBIENCE.PAK" ||
+                        // BEATS carries the mission-complete sting, which the SFX bake reads
+                        // straight through as ADPCM. It used to be staged by the RADIO step,
+                        // which runs later, so on a disc convert the SFX pass never found it
+                        // and the mission end sound was silently missing from sfx.bin.
+                        p == "AUDIO/STREAMS/BEATS.PAK";
             if (!take) continue;
             string dest = Path.Combine(gameRoot, p.Replace('/', Path.DirectorySeparatorChar));
             if (File.Exists(dest)) { ++reuse; continue; }   // e.g. AUDIOZON.IPL already staged by interiors
@@ -1583,6 +1591,7 @@ public static class ConvertPipeline
         // and quiet between them; length remains the fallback.
         StreamStep(cx,
                    new[] { Path.Combine(cx.TempDir, "_streams_scratch"),
+                           "--no-stations",     // voice only: do not re-copy ~1.5 GB of stations
                            "--intro", Path.Combine(cutOut, "intro1a.adp"), "100.7",
                            "--intro-subs", Path.Combine(cutOut, "intro1a_subs.bin") },
                    "cutscene voice", false);

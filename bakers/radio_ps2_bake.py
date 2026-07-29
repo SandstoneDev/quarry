@@ -13,23 +13,23 @@ longer and the known-good build lists exactly 12 songs for that station. Talk
 stations are all long, so a pack with no short elements is marked talk throughout.
 
 Output:
- <out>/<CODE>/NNN.adp 'ADP3' u16 channels, u16 rate, u32 bytesPerCh,
- u32 samplesPerCh, then interleaved ADPCM (0x2000 blocks)
- <out>/radio.bin 'RAD2' manifest (below)
- <out>/../cutscene/NNN.adp when --cutscene is given
+  <out>/<CODE>/NNN.adp      'ADP3' u16 channels, u16 rate, u32 bytesPerCh,
+                            u32 samplesPerCh, then interleaved ADPCM (0x2000 blocks)
+  <out>/radio.bin           'RAD2' manifest (below)
+  <out>/../cutscene/NNN.adp when --cutscene is given
 
 radio.bin:
- 'RAD2' u32 version=2, u32 nStations
- station: char code[4], u8 radioId, u8 flags, u16 nElems, char name[32]
- elem[nElems]: u8 kind (0 music, 1 talk, 2 ident), u8 pad,
- u16 rate, u32 bytesPerCh, u32 samplesPerCh
- Element N of station CODE is <CODE>/NNN.adp; bytesPerCh*2 is the file size.
+  'RAD2' u32 version=2, u32 nStations
+  station: char code[4], u8 radioId, u8 flags, u16 nElems, char name[32]
+           elem[nElems]: u8 kind (0 music, 1 talk, 2 ident), u8 pad,
+                         u16 rate, u32 bytesPerCh, u32 samplesPerCh
+  Element N of station CODE is <CODE>/NNN.adp; bytesPerCh*2 is the file size.
 
 Usage: radio_ps2_bake.py <audio-dir> <out-dir> [--cutscene <dir>] [--elf <file>]
- [--ambience <dir>] [--intro <file> <seconds>] [--names <file>]
- --elf reads the station identifiers out of the game executable, which is where
- the disc names its own stations; --names overrides with `CODE=Display Name`
- lines. Without either, a station shows its pack code.
+                        [--ambience <dir>] [--intro <file> <seconds>] [--names <file>]
+       --elf reads the station identifiers out of the game executable, which is where
+       the disc names its own stations; --names overrides with `CODE=Display Name`
+       lines. Without either, a station shows its pack code.
 """
 import os
 import struct
@@ -57,11 +57,11 @@ ADP_MAGIC = b"ADP3"
 def copy_element(fsrc, off, nbytes_total, dst, rate=0, channels=2, samples=0):
     """Write one element out as ADP2: a 16-byte header, then each channel whole.
 
- The source stores a channel in 0x10000 slices separated by the other channel's
- slice and 0x1000 of padding (S.channel_bytes walks that). Writing the channels
- FLAT means the runtime reads one straight forward, which both removes the
- interleave as a source of bugs and halves the seeking its card reader does.
- """
+    The source stores a channel in 0x10000 slices separated by the other channel's
+    slice and 0x1000 of padding (S.channel_bytes walks that). Writing the channels
+    FLAT means the runtime reads one straight forward, which both removes the
+    interleave as a source of bugs and halves the seeking its card reader does.
+    """
     channels = max(1, channels)
     per_ch = nbytes_total // channels
     fsrc.seek(off + S.DATA)   # S.DATA, not S.HDR: the frame grid starts four bytes later
@@ -91,6 +91,11 @@ def main():
     cut_dir = None
     amb_dir = None
     intro = None
+    # A run that only wants the ambience or the cutscene voice must not touch the
+    # stations. Without this it walked every pack again: the ambience run rewrote
+    # radio.bin with ZERO stations (only step order saved it) and the cutscene run
+    # re-copied ~1.5 GB of station audio into a scratch dir nobody reads.
+    stations_wanted = True
     intro_subs = None
     elf_path = None
     names = {}
@@ -104,6 +109,8 @@ def main():
             amb_dir = sys.argv[a + 1]; a += 2
         elif sys.argv[a] == "--intro" and a + 2 < len(sys.argv):
             intro = (sys.argv[a + 1], float(sys.argv[a + 2])); a += 3
+        elif sys.argv[a] == "--no-stations":
+            stations_wanted = False; a += 1
         elif sys.argv[a] == "--intro-subs" and a + 1 < len(sys.argv):
             intro_subs = sys.argv[a + 1]; a += 2
         elif sys.argv[a] == "--names" and a + 1 < len(sys.argv):
@@ -211,7 +218,7 @@ def main():
     stations = []
     total_bytes = 0
 
-    for pid, name in enumerate(packs):
+    for pid, name in enumerate(packs) if stations_wanted else []:
         is_cut = (name == "CUTSCENE")
         if name in SKIP and not (is_cut and cut_dir):
             continue
@@ -219,7 +226,7 @@ def main():
         if not elems:
             continue
         # The track table covers every pack on the disc, but a run that only wants the
-        # ambience or the cutscene voice is given just those.PAK files. Skip a pack that
+        # ambience or the cutscene voice is given just those .PAK files. Skip a pack that
         # was not staged instead of dying on it: without this an ambience-only run reports
         # failure even though it already wrote its tracks.
         if not S.pack_available(audio, name):
@@ -264,6 +271,9 @@ def main():
             kinds[k] += 1
         print("  %-8s %3d elements  music %3d  talk %3d  ident %3d"
               % (name, len(recs), kinds[MUSIC], kinds[TALK], kinds[IDENT]))
+
+    if not stations_wanted:      # ambience/voice run: leave the dial manifest alone
+        return
 
     blob = bytearray(struct.pack("<4sII", b"RAD2", 2, len(stations)))
     for code, rid, flags, disp, recs in stations:
