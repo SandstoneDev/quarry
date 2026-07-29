@@ -25,7 +25,7 @@ the next byte is a valid type tag, and FLAG the instruction as heuristic.
 Variadic opcodes (START_NEW_SCRIPT 0x004F etc.) end their arg list with an
 END_OF_ARGUMENTS (0x00) tag; handled explicitly.
 
-Usage:  python scm_disasm.py [path-to-main.scm] [path-to-sa.json]
+Usage: python scm_disasm.py [path-to-main.scm] [path-to-sa.json]
 """
 import sys, os, struct, json
 from collections import Counter, defaultdict
@@ -82,7 +82,7 @@ def consume_one_arg(mm, ip):
 
 def try_decode_one(mm, table, ip, end):
     """Tentatively decode a single instruction. Return (next_ip, op) or (None, op).
-    Used by the resync scanner - strict: opcode must be in table and in valid range."""
+ Used by the resync scanner - strict: opcode must be in table and in valid range."""
     if ip + 2 > end:
         return None, None
     op = struct.unpack_from('<H', mm, ip)[0] & 0x7FFF
@@ -127,7 +127,7 @@ def try_decode_one(mm, table, ip, end):
 
 def resync(mm, table, ip, end, window=6):
     """Scan forward from ip byte-by-byte until `window` consecutive instructions
-    decode cleanly (all in-range, in-table). Return the locked ip, or end."""
+ decode cleanly (all in-range, in-table). Return the locked ip, or end."""
     pos = ip
     while pos < end:
         cur = pos

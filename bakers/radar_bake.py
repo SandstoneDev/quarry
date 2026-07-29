@@ -13,22 +13,22 @@ then box-downsample to 512x512 (PSP max texture size) RGBA8888. The runtime draw
 disc-fan whose UVs come from the inverse radar transform -> a clean rotating circular
 minimap from one textured draw.
 
-geo-ref: atlasU = (wx + 3000) / 6000 ; atlasV = (3000 - wy) / 6000   (both 0..1)
+geo-ref: atlasU = (wx + 3000) / 6000 ; atlasV = (3000 - wy) / 6000 (both 0..1)
 
 Also packs the real HUD radar sprites from models/hud.txd: radar_centre (player
 marker) + radar_north (the N marker), 16x16 RGBA each.
 
 radar.bin (RDR5):
-  'RDR5'
-  u32 atlasW, atlasH      (512, 512)
-  u32 spriteW, spriteH    (16, 16)
-  u32 nBlips              (len(BLIP_ORDER))
-  u32 ringW, ringH        (64, 64)   - radarRingPlane flight overlay
-  atlasW*atlasH RGBA8888      (map atlas)
-  spriteW*spriteH RGBA8888    (radar_centre)
-  spriteW*spriteH RGBA8888    (radar_north)
-  ringW*ringH RGBA8888        (radarRingPlane, green-recolored ground + white horizon)
-  nBlips * spriteW*spriteH RGBA8888   (all radar_* blip sprites, in BLIP_ORDER)
+ 'RDR5'
+ u32 atlasW, atlasH (512, 512)
+ u32 spriteW, spriteH (16, 16)
+ u32 nBlips (len(BLIP_ORDER))
+ u32 ringW, ringH (64, 64) - radarRingPlane flight overlay
+ atlasW*atlasH RGBA8888 (map atlas)
+ spriteW*spriteH RGBA8888 (radar_centre)
+ spriteW*spriteH RGBA8888 (radar_north)
+ ringW*ringH RGBA8888 (radarRingPlane, green-recolored ground + white horizon)
+ nBlips * spriteW*spriteH RGBA8888 (all radar_* blip sprites, in BLIP_ORDER)
 BLIP_ORDER == the runtime BLIP_* enum in Radar.h (index = enum value). Keep in sync.
 """
 import os

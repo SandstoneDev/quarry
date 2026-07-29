@@ -5,17 +5,17 @@ Used identically (verified) by *.LVZ, PSP/GAME.DTZ, GTA3PSP.IMG, and *.XTX, plus
 
 Layout of the 0x20-byte header (at the START of the *inflated* payload for zlib-wrapped
 files; at file offset 0 for uncompressed ones like XTX):
-    +0x00 u32 magic        'DLRW'=0x57524C44 | 'GTAG'=0x47544147 | 'tex\\0'=0x00746578
-    +0x04 u32 version       (LVZ=0, DTZ=1)
-    +0x08 u32 total_size    == len(payload) exactly
-    +0x0c u32 payload_size
-    +0x10 u32 reloc_off     (== payload_size; u32 fixup-site list follows the payload)
-    +0x14 u32 reloc_count
-    +0x18 u32 import_off
-    +0x1c u16 import_count1 ; +0x1e u16 import_count2
+ +0x00 u32 magic 'DLRW'=0x57524C44 | 'GTAG'=0x47544147 | 'tex\\0'=0x00746578
+ +0x04 u32 version (LVZ=0, DTZ=1)
+ +0x08 u32 total_size == len(payload) exactly
+ +0x0c u32 payload_size
+ +0x10 u32 reloc_off (== payload_size; u32 fixup-site list follows the payload)
+ +0x14 u32 reloc_count
+ +0x18 u32 import_off
+ +0x1c u16 import_count1 ; +0x1e u16 import_count2
 
 Relocation (engine FUN_0022d780): for each u32 site offset E in the reloc list,
-*(payload+E) += base.  The consumer root is payload+0x20.
+*(payload+E) += base. The consumer root is payload+0x20.
 
 NOTE on round-trip: for zlib-wrapped containers the byte-exact gate is at the *payload*
 level (decode/encode of the inflated payload), not the compressed file - zlib output is

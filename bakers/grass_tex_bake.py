@@ -8,9 +8,9 @@ different names, which is why the old reader found nothing here.
 
 grass.bin (little-endian), the same container shape CarFx uses so the runtime
 loader stays one proven piece of code:
-  'GRS1' u16 count u16 pad
-  per texture: u16 w, h, levels|amode<<8 (+0x8000 when T4), clutEntries,
-               u32 texelLen, clutLen, then swizzled texels and an RGBA8888 clut
+ 'GRS1' u16 count u16 pad
+ per texture: u16 w, h, levels|amode<<8 (+0x8000 when T4), clutEntries,
+ u32 texelLen, clutLen, then swizzled texels and an RGBA8888 clut
 
 Usage: grass_tex_bake.py <particle.txd> <out grass.bin>
 """
@@ -33,9 +33,9 @@ BLADE = 64                                      # one blade cell; PlantMgr maps 
 
 def _first_blade(w, h, rgba):
     """The PS2 sheets stack four blade variants in one 64x256 column (measured:
-    four 64-row bands of clearly different alpha coverage). PlantMgr wants a single
-    blade per set and maps UV across the whole texture, so hand it the top cell --
-    otherwise every tuft renders all four variants squashed into one quad."""
+ four 64-row bands of clearly different alpha coverage). PlantMgr wants a single
+ blade per set and maps UV across the whole texture, so hand it the top cell --
+ otherwise every tuft renders all four variants squashed into one quad."""
     if h <= BLADE or h % BLADE:
         return w, h, rgba
     return w, BLADE, rgba[: w * BLADE * 4]

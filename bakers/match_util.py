@@ -42,8 +42,8 @@ def match_all(grid, x, y, z, tol=0.5, ztol=None):
 
 def pick_by_verts(cands, prod_verts, dff_vert_count):
     """cands: candidate names; prod_verts: deployed model vertex total;
-    dff_vert_count(name)->int|None. Largest DFF that fits under the deployed
-    count (x1.05+8 tolerance); if none fits, the smallest DFF overall."""
+ dff_vert_count(name)->int|None. Largest DFF that fits under the deployed
+ count (x1.05+8 tolerance); if none fits, the smallest DFF overall."""
     best, best_v = None, -1
     small, small_v = None, 1 << 30
     for nm in cands:

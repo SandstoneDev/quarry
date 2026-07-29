@@ -10,7 +10,7 @@ across itself at 16-bit precision, which reads as a stretched surface.
 The known-good PC-derived world caps every triangle at 4.00 tiles (geom.py
 UV_EDGE_MAX). A PS2 bake that has not been through ps2_uv_tess reaches ~14. So:
 
-  python uv_span_stat.py <dir-or-pmap> [more ...] [--sample N] [--label NAME]
+ python uv_span_stat.py <dir-or-pmap> [more ...] [--sample N] [--label NAME]
 
 prints tris / median / p99 / max and the share of triangles above 2, 4, 8 and 15
 tiles. Point it at two world sets to compare them, e.g. a reference set and a

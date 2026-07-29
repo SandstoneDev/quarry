@@ -2,14 +2,14 @@
 """cutaudio_bake.py - bake the intro1a cutscene's AUDIO + SUBTITLES for the PSP port.
 
 Two outputs into data/cutscene/:
-  * intro1a.ogg       - the premixed cutscene stream (voices + ambience + score), decrypted
-                         from audio/streams/CUTSCENE track 703 (INTRO1A) via the SAME XOR path
-                         the radio uses. 32 kHz stereo, ~100.7 s. Streamed at runtime by
-                         CutsceneAudio.c (stb_vorbis worker, no loop).
-  * intro1a_subs.bin  - 'CSUB' + u16 count + [u32 startMs, u32 durMs, u16 len, char[len]]...
-                         parsed from anim/cuts.img : intro1a.cut TEXT section (start,dur,gxtKey)
-                         with the key resolved against text/american.gxt table INTRO1 using the
-                         SA GXT key hash (CRC-32-IEEE, no final XOR, uppercased). ~ tokens stripped.
+ * intro1a.ogg - the premixed cutscene stream (voices + ambience + score), decrypted
+ from audio/streams/CUTSCENE track 703 (INTRO1A) via the SAME XOR path
+ the radio uses. 32 kHz stereo, ~100.7 s. Streamed at runtime by
+ CutsceneAudio.c (stb_vorbis worker, no loop).
+ * intro1a_subs.bin - 'CSUB' + u16 count + [u32 startMs, u32 durMs, u16 len, char[len]]...
+ parsed from anim/cuts.img : intro1a.cut TEXT section (start,dur,gxtKey)
+ with the key resolved against text/american.gxt table INTRO1 using the
+ SA GXT key hash (CRC-32-IEEE, no final XOR, uppercased). ~ tokens stripped.
 
 Ground truth: the reference notes CutSceneStreamsPC.h (INTRO1A=703), CutsceneMgr.cpp (TEXT section),
 Core/KeyGen.h (GetUppercaseKey = CRC-32 0xEDB88320, init 0xFFFFFFFF, no final invert).
@@ -40,7 +40,7 @@ DEPLOY  = [
 
 def sa_gxt_hash(s):
     """CKeyGen::GetUppercaseKey - CRC-32-IEEE (poly 0xEDB88320, init 0xFFFFFFFF) with NO
-    final inversion, over the uppercased key. zlib.crc32 applies the final ^0xFFFFFFFF, so undo it."""
+ final inversion, over the uppercased key. zlib.crc32 applies the final ^0xFFFFFFFF, so undo it."""
     return zlib.crc32(s.upper().encode("latin1")) ^ 0xFFFFFFFF
 
 
@@ -115,14 +115,14 @@ def parse_cut_text(raw):
 
 def _extract_cutscene_ogg():
     """Decrypt CUTSCENE stream track 703 with the PC XOR path and return the OGG bytes, or
-    None if the payload isn't a PC OGG (PS2 disc = VAG). Uses radio_bake's KEY/HDR constants
-    (radio_bake itself is left untouched) and tolerates the PS2 '.PAK' filename suffix that
-    the extensionless PC stream files lack."""
+ None if the payload isn't a PC OGG (PS2 disc = VAG). Uses radio_bake's KEY/HDR constants
+ (radio_bake itself is left untouched) and tolerates the PS2 '.PAK' filename suffix that
+ the extensionless PC stream files lack."""
     packs, lut = radio_bake.load_lookups(GAME)
     pid, off, size = lut[TRACKID]
     spath = os.path.join(GAME, "audio", "streams", packs[pid])
     if not os.path.isfile(spath) and os.path.isfile(spath + ".PAK"):
-        spath += ".PAK"                     # PS2 stream files carry a .PAK suffix
+        spath += ".PAK"                     # PS2 stream files carry a.PAK suffix
     with open(spath, "rb") as f:
         f.seek(off + radio_bake.HDR)
         enc = f.read(size)
@@ -185,7 +185,7 @@ def main():
     # ---- deploy ----
     n = 0
     for d in DEPLOY:
-        parent = os.path.dirname(os.path.dirname(os.path.dirname(d)))  # .../SA_PSP
+        parent = os.path.dirname(os.path.dirname(os.path.dirname(d)))  #.../SA_PSP
         if not os.path.isdir(os.path.dirname(parent)):
             continue
         try:

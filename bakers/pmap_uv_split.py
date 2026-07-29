@@ -18,8 +18,8 @@ whole-tile offset subtracted (GU_REPEAT-identical). Every piece then fits the
 s16 range -> no clamp -> no stripes. Geometry/appearance byte-identical; costs a
 few duplicated verts + extra submeshes on the offending (road) models only.
 
-Usage (as a module):   from pmap_uv_split import split_scene_models
-                       split_scene_models(scene.models)   # in place
+Usage (as a module): from pmap_uv_split import split_scene_models
+ split_scene_models(scene.models) # in place
 """
 import struct
 
@@ -79,7 +79,7 @@ def _split_submesh(sm_cls, sm):
         vb = b"".join(struct.pack("<hhHhhh", *v) for v in bverts)
         ib = struct.pack("<%dH" % len(bidx), *bidx)
         # carry every build-time per-submesh attribute onto the pieces: uvscroll
-        # (animated-texture UV rate -> the .anim sidecar) belongs to the MATERIAL,
+        # (animated-texture UV rate -> the.anim sidecar) belongs to the MATERIAL,
         # so each piece of a split scrolling sign must keep scrolling. Dropping it
         # silently killed the animation on any over-tiled animated submesh.
         out.append(sm_cls(texture=sm.texture, vertex_bytes=vb, index_bytes=ib,

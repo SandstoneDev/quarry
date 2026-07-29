@@ -6,45 +6,45 @@ into per-texture RGBA8888 images.
 Chunk layout
 ------------
 TexDictionary (0x16)
-  STRUCT (0x01)  - u16 numTextures, u16 deviceId (6 = PS2)
-  [TextureNative (0x15)] * numTextures
-    STRUCT (0x01)  - u32 platform (1), u32 filterAddr
-    STRING (0x02)  - texture name (null-padded)
-    STRING (0x02)  - alpha mask name (null-padded)
-    STRUCT (0x01)  - PS2 raster + GIF data (the large one)
-      STRUCT (0x01)  - raster header (w, h, depth, rasterFmt, GsTex0, ...)
-      STRUCT (0x01)  - GIF packet stream (mip levels + CLUT)
-    EXTENSION (0x03)
+ STRUCT (0x01) - u16 numTextures, u16 deviceId (6 = PS2)
+ [TextureNative (0x15)] * numTextures
+ STRUCT (0x01) - u32 platform (1), u32 filterAddr
+ STRING (0x02) - texture name (null-padded)
+ STRING (0x02) - alpha mask name (null-padded)
+ STRUCT (0x01) - PS2 raster + GIF data (the large one)
+ STRUCT (0x01) - raster header (w, h, depth, rasterFmt, GsTex0, ...)
+ STRUCT (0x01) - GIF packet stream (mip levels + CLUT)
+ EXTENSION (0x03)
 
 Pixel formats
 -------------
-PSM 0x13  PSMT8   8bpp, 256-entry CLUT
-PSM 0x14  PSMT4   4bpp, 16-entry CLUT
-PSM 0x00  PSMCT32 32bpp direct (uncommon in SA)
+PSM 0x13 PSMT8 8bpp, 256-entry CLUT
+PSM 0x14 PSMT4 4bpp, 16-entry CLUT
+PSM 0x00 PSMCT32 32bpp direct (uncommon in SA)
 
 The GIF packet stream stores:
-  [mip level 0 IMAGE] [mip level 1 IMAGE] ... [CLUT IMAGE]
+ [mip level 0 IMAGE] [mip level 1 IMAGE] ... [CLUT IMAGE]
 The LAST IMAGE packet is always the CLUT.
 
 PS2 swizzle
 -----------
 RenderWare does NOT store a GS VRAM dump - it stores the host->local
-*transfer stream* that gets DMA'd to the GS.  Swizzled rasters are uploaded
+*transfer stream* that gets DMA'd to the GS. Swizzled rasters are uploaded
 in a wider pixel format with halved dimensions (the GIF TRXREG on disk says
 w/2 x h/2):
 
-  PSMT8 (8bpp)  is transferred as PSMCT32, w/2 x h/2 (byte-unit swizzle)
-  PSMT4 (4bpp)  is transferred as PSMCT16, w/2 x h/2 (nibble-unit swizzle)
+ PSMT8 (8bpp) is transferred as PSMCT32, w/2 x h/2 (byte-unit swizzle)
+ PSMT4 (4bpp) is transferred as PSMCT16, w/2 x h/2 (nibble-unit swizzle)
 
 The net texel scramble is the GS block/column CT32<->T8 (CT16<->T4)
 relationship with all page bookkeeping cancelling out; the closed form is
 librw ps2raster.cpp swizzle() (equivalent to the classic "Sparky"
-unswizzle8).  Rows repeat in strips of 4; within a strip the CT row is
+unswizzle8). Rows repeat in strips of 4; within a strip the CT row is
 2*(y//4)+(y&1), the byte/nibble lane is ((y>>1)&1) | x-bit-3, and rows with
 (y>>1 ^ y>>2) odd have their 8-texel word halves swapped (x ^= 4).
 Transfers have a minimum size (RW transferMinSize): swizzled PSMT8 is at
 least 16x4, swizzled PSMT4 at least 32x4, so the stored row stride uses
-max(w, 16) / max(w, 32) texels.  Empirically every 4/8-bit texture in the
+max(w, 16) / max(w, 32) texels. Empirically every 4/8-bit texture in the
 SA PS2 GTA3.IMG (26k textures incl. SAR-mod repacks) is stored swizzled
 (raster version field == 2), and mip0 size == align16(max(w,minw) *
 max(h,4) * bpp/8) for all of them.
@@ -78,17 +78,17 @@ _PSM_PSMT8   = 0x13  # 8bpp, 256-entry CLUT
 _PSM_PSMT4   = 0x14  # 4bpp, 16-entry CLUT
 
 # ---------------------------------------------------------------------------
-# GS swizzled-transfer address mapping (librw ps2raster.cpp swizzle())
+# GS swizzled-transfer address mapping (librw ps2raster.cpp swizzle)
 # ---------------------------------------------------------------------------
 def _gs_transfer_addr(x: int, y: int, w: int) -> int:
     """Return the unit index in the swizzled transfer stream for texel (x, y).
 
-    Units are bytes for PSMT8 (PSMCT32 transfer) and nibbles for PSMT4
-    (PSMCT16 transfer).  w is the stored row stride in texel units --
-    max(width, 16) for PSMT8 / max(width, 32) for PSMT4 (RW min transfer).
-    Validated against librw's swizzle() and the classic Sparky unswizzle8
-    (both give the identical mapping).
-    """
+ Units are bytes for PSMT8 (PSMCT32 transfer) and nibbles for PSMT4
+ (PSMCT16 transfer). w is the stored row stride in texel units --
+ max(width, 16) for PSMT8 / max(width, 32) for PSMT4 (RW min transfer).
+ Validated against librw's swizzle() and the classic Sparky unswizzle8
+ (both give the identical mapping).
+ """
     xx = x ^ ((((y >> 1) ^ (y >> 2)) & 1) << 2)   # half-word swap rows
     nx = (xx & 7) | ((x >> 1) & ~7)               # CT word/unit x
     ny = (y & 1) | ((y >> 1) & ~1)                # CT row (2 per 4-texel strip)
@@ -99,8 +99,8 @@ def _gs_transfer_addr(x: int, y: int, w: int) -> int:
 def _unswizzle_psmt8(data: bytes, w: int, h: int) -> bytes:
     """De-swizzle GS PSMT8 raw bytes → linear palette-index byte array (w*h).
 
-    The stream is a PSMCT32 transfer of max(w,16)/2 x max(h,4)/2.
-    """
+ The stream is a PSMCT32 transfer of max(w,16)/2 x max(h,4)/2.
+ """
     ww = max(w, 16)
     out = bytearray(w * h)
     n = len(data)
@@ -116,10 +116,10 @@ def _unswizzle_psmt8(data: bytes, w: int, h: int) -> bytes:
 def _unswizzle_psmt4(data: bytes, w: int, h: int) -> bytes:
     """De-swizzle GS PSMT4 raw bytes → linear palette-index byte array (w*h).
 
-    The stream is a PSMCT16 transfer of max(w,32)/2 x max(h,4)/2; the same
-    address mapping as PSMT8 applies but in nibble units (low nibble first).
-    Each output byte contains one palette index in [0, 15].
-    """
+ The stream is a PSMCT16 transfer of max(w,32)/2 x max(h,4)/2; the same
+ address mapping as PSMT8 applies but in nibble units (low nibble first).
+ Each output byte contains one palette index in [0, 15].
+ """
     ww = max(w, 32)
     out = bytearray(w * h)
     n = len(data)
@@ -140,10 +140,10 @@ def _unswizzle_psmt4(data: bytes, w: int, h: int) -> bytes:
 def _deswizzle_clut8(raw: bytes) -> bytes:
     """Deswizzle a 256-entry PSMT8 CLUT (1024 bytes RGBA8888).
 
-    Within each 32-entry group of the CLUT the two 8-entry sub-blocks are
-    stored swapped (column-interleave in PSMCT32 VRAM).  This restores the
-    linear 0-255 ordering.
-    """
+ Within each 32-entry group of the CLUT the two 8-entry sub-blocks are
+ stored swapped (column-interleave in PSMCT32 VRAM). This restores the
+ linear 0-255 ordering.
+ """
     out = bytearray(256 * 4)
     for i in range(256):
         j = (i & ~0x18) | ((i & 0x08) << 1) | ((i & 0x10) >> 1)
@@ -170,9 +170,9 @@ def _parse_chunks(data: bytes, o: int, end: int):
 def _parse_gif_images(d: bytes):
     """Return a list of raw bytes for every IMAGE-mode GIF packet in d.
 
-    Each IMAGE GIF tag (flg=2) is followed by nloop*16 bytes of data.
-    PACKED/REGLIST tags (BITBLTBUF / TRXREG / TRXDIR setup) are skipped.
-    """
+ Each IMAGE GIF tag (flg=2) is followed by nloop*16 bytes of data.
+ PACKED/REGLIST tags (BITBLTBUF / TRXREG / TRXDIR setup) are skipped.
+ """
     images = []
     off = 0
     while off + 16 <= len(d):
@@ -205,27 +205,27 @@ def _parse_gif_images(d: bytes):
 def decode(blob, linear=False) -> "dict[str, tuple[int, int, bytes]]":
     """Decode a the source game PS2-native TXD blob.
 
-    linear=True reads PSMT4/PSMT8 texel data as plain row-major bytes instead
-    of GS-deswizzling. Modded repacks (e.g. Magic.TXD output, SAR Mod) store
-    texels linear; vanilla discs store them GS-swizzled. Callers that don't
-    know the provenance should decode both ways and pick by content.
+ linear=True reads PSMT4/PSMT8 texel data as plain row-major bytes instead
+ of GS-deswizzling. Modded repacks (e.g. Magic.TXD output, SAR Mod) store
+ texels linear; vanilla discs store them GS-swizzled. Callers that don't
+ know the provenance should decode both ways and pick by content.
 
-    Parameters
-    ----------
-    blob : bytes-like
-        Raw TXD chunk bytes (starts with TexDictionary chunk 0x16).
+ Parameters
+ ----------
+ blob : bytes-like
+ Raw TXD chunk bytes (starts with TexDictionary chunk 0x16).
 
-    Returns
-    -------
-    dict mapping lower-cased texture name → (width, height, rgba_bytes)
-        rgba_bytes is len w*h*4, channel order R G B A (alpha last),
-        alpha in 0-255 range (PS2's 0-128 scale is doubled and clamped).
+ Returns
+ -------
+ dict mapping lower-cased texture name → (width, height, rgba_bytes)
+ rgba_bytes is len w*h*4, channel order R G B A (alpha last),
+ alpha in 0-255 range (PS2's 0-128 scale is doubled and clamped).
 
-    Raises
-    ------
-    ValueError
-        If ``blob`` does not start with a TexDictionary chunk.
-    """
+ Raises
+ ------
+ ValueError
+ If ``blob`` does not start with a TexDictionary chunk.
+ """
     data = bytes(blob)
 
     # Validate top-level chunk
@@ -265,7 +265,7 @@ def decode(blob, linear=False) -> "dict[str, tuple[int, int, bytes]]":
         if not struct_chunks:
             continue
         # There are typically two STRUCTs: a tiny one (8 bytes) with platform/filter,
-        # and a large one containing nested chunks.  Take the largest.
+        # and a large one containing nested chunks. Take the largest.
         big = max(struct_chunks, key=lambda c: c[1])
         big_body = big[2]
         big_size = big[1]
@@ -329,7 +329,7 @@ def decode(blob, linear=False) -> "dict[str, tuple[int, int, bytes]]":
             continue
 
         mip0_raw = image_packets[0]   # first IMAGE = mip level 0 pixels
-        clut_raw = image_packets[-1]  # last  IMAGE = CLUT (unused for PSMCT32)
+        clut_raw = image_packets[-1]  # last IMAGE = CLUT (unused for PSMCT32)
 
         # --- decode by pixel format ---
         if psm == _PSM_PSMT8:

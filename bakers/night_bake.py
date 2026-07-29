@@ -1,10 +1,10 @@
 """Step 1 of the region day/night prelight pipeline (see docs/.../dn_prelight_plan.md).
 
 Produce a NIGHT vertex-colour stream aligned 1:1 to the PRE-tessellation whole-map
-`sa_full.pmap` vertex pool.  We replicate `sa_export_pmap.build_pmap`'s enumeration EXACTLY
+`sa_full.pmap` vertex pool. We replicate `sa_export_pmap.build_pmap`'s enumeration EXACTLY
 (same IMG/IDE/IPL, `want = sorted(model_ids)`, same per-model skip filters, same
 `sa_dff_pc.decode` + `psp_mesh.pack_model`) so the night stream lands in the same
-model-major / submesh / vertex order the baker wrote.  `pack_model` is 1:1 (packed vertex
+model-major / submesh / vertex order the baker wrote. `pack_model` is 1:1 (packed vertex
 i == mesh vertex i), so per model we match each mesh vertex back to its geometry vertex by
 (position, day-colour) and read the night RGBA from the GEOMETRY->EXTENSION chunk 0x0253F2F9
 (magic u32 + RwRGBA[nVert]; magic 0 -> night = day).
@@ -12,7 +12,7 @@ i == mesh vertex i), so per model we match each mesh vertex back to its geometry
 Output: `night_pre.bin` = u16 GU_COLOR_5551 per sa_full.pmap vertex.
 Validation: vertex count must equal sa_full.pmap's.
 
-Run:  cd <gvcslib root> && PYTHONPATH=. python <this>/night_bake.py
+Run: cd <gvcslib root> && PYTHONPATH=. python <this>/night_bake.py
 """
 import os
 import struct
@@ -68,7 +68,7 @@ def _parse_night(blob, geo, nvert):
 
 def geom_pos_day_night(blob, geo):
     """Walk one GEOMETRY STRUCT to get per-vertex (position, day-colour) + the night array.
-    Mirrors sa_dff_pc.decode's STRUCT walk exactly so offsets line up."""
+ Mirrors sa_dff_pc.decode's STRUCT walk exactly so offsets line up."""
     st = geo.find(STRUCT)
     if not st:
         return None
@@ -181,7 +181,7 @@ def main():
 
 def pmap_vertex_count(path):
     """vertex pool bytes / 12 (PmapVertex = 12B). vertex_bytes is the 14th u32 of the
-    PmapHeader (offset 52) - see src/platform_psp/pmap.h."""
+ PmapHeader (offset 52) - see src/platform_psp/pmap.h."""
     with open(path, "rb") as f:
         h = f.read(56)
     return struct.unpack_from("<I", h, 52)[0] // 12

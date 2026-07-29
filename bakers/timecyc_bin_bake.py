@@ -12,14 +12,14 @@ the weather-16@20h row is intact here unlike PC timecyc.dat - see the old
 script's header for the full story).
 
 timecyc.bin layout (little-endian):
-  'TCY1'  u8 hours=8  u8 weathers=23  u16 reserved=0
-  then hours x weathers rows, 46 bytes each, [hour][weather] order:
-    u8 amb[3] ambObj[3] skyTop[3] skyBot[3] sunCore[3] sunCorona[3]   (18)
-    i16 far  i16 fog                                                  (4)
-    f32 sunSize                                                       (4)
-    u8 lowCloud[3] topCloud[3] water[4]                               (10)
-    u8 postfx1[4] postfx2[4]                                          (8)
-    u8 highlight  u8 dirMult                                          (2)
+ 'TCY1' u8 hours=8 u8 weathers=23 u16 reserved=0
+ then hours x weathers rows, 46 bytes each, [hour][weather] order:
+ u8 amb[3] ambObj[3] skyTop[3] skyBot[3] sunCore[3] sunCorona[3] (18)
+ i16 far i16 fog (4)
+ f32 sunSize (4)
+ u8 lowCloud[3] topCloud[3] water[4] (10)
+ u8 postfx1[4] postfx2[4] (8)
+ u8 highlight u8 dirMult (2)
 
 Usage: timecyc_bin_bake.py <timecycP.dat> <out timecyc.bin>
 """

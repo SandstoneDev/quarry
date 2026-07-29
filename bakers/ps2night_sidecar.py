@@ -9,7 +9,7 @@ column of the night twin: u16[vertex_count], exactly what pmap_load_night eats
 (plain array, size == vertex_bytes/12 entries).
 
 Usage: ps2night_sidecar.py <nightDir> <dayDir>
-    For every region_*.pmap present in BOTH dirs, writes dayDir/region_*.night.
+ For every region_*.pmap present in BOTH dirs, writes dayDir/region_*.night.
 """
 import os
 import struct
@@ -63,8 +63,8 @@ def _lum5551(c):
 
 def nightd_runs(day_col, night_col, nv):
     """NDL2 glow runs from the day/night 5551 columns - same emissive filter
-    as the battle night_delta_bake (lum >= 800 AND lum > day_lum * 0.7):
-    only lit windows / neon get a run, dull tints stay on the global darken."""
+ as the battle night_delta_bake (lum >= 800 AND lum > day_lum * 0.7):
+ only lit windows / neon get a run, dull tints stay on the global darken."""
     runs = []
     i = 0
     while i < nv:

@@ -3,17 +3,17 @@
 UV-split submeshes. NOTHING here is quantized; s16 packing happens in pack.py.
 
 Rules (spec):
-  sanitize:   corrupt-UV submeshes (span > UV_GARBAGE tiles, e.g. easykerb's ~2.7e7)
-              are per-vertex fract-wrapped - GU_REPEAT-identical, kills the blow-up
-  tessellate: no triangle edge longer than 24 world units (GE guard-band) AND no
-              edge spanning more than UV_EDGE_MAX texture tiles (the striped-road fix:
-              caps every triangle's UV extent so a high-tiling short-world-edge quad
-              can't stay a single >8-tile triangle that the s16 UV packing clamps)
-  uv_split:   a submesh whose UV span exceeds UV_SPAN_MAX tiles is partitioned by the
-              UV cell (UV_CELL) of each triangle's centroid; every part is rebased by
-              an INTEGER offset (tiling-safe). CELL + UV_EDGE_MAX kept < 15 so the
-              rebased span never reaches the +-8-tile s16 clamp -> no stripes.
-  recenter:   every submesh min UV moved into [0,1) by an integer shift
+ sanitize: corrupt-UV submeshes (span > UV_GARBAGE tiles, e.g. easykerb's ~2.7e7)
+ are per-vertex fract-wrapped - GU_REPEAT-identical, kills the blow-up
+ tessellate: no triangle edge longer than 24 world units (GE guard-band) AND no
+ edge spanning more than UV_EDGE_MAX texture tiles (the striped-road fix:
+ caps every triangle's UV extent so a high-tiling short-world-edge quad
+ can't stay a single >8-tile triangle that the s16 UV packing clamps)
+ uv_split: a submesh whose UV span exceeds UV_SPAN_MAX tiles is partitioned by the
+ UV cell (UV_CELL) of each triangle's centroid; every part is rebased by
+ an INTEGER offset (tiling-safe). CELL + UV_EDGE_MAX kept < 15 so the
+ rebased span never reaches the +-8-tile s16 clamp -> no stripes.
+ recenter: every submesh min UV moved into [0,1) by an integer shift
 """
 import math
 import os
@@ -29,13 +29,13 @@ TESS_EDGE = 24.0
 # with the engine's TexScale(8,8) the window is [0,16) tiles, wrap mod 16
 # (Sony GE-UM 6.1/6.5; research/striped_textures_rootcause_and_fix.md).
 # The striped-road fix has TWO stages:
-#  1. UV_EDGE_MAX: tessellate caps every triangle's UV extent (max-min over any pair
-#     is an edge, so all-edges<=E => triangle span<=E). Kills single high-tiling
-#     triangles that world-length tessellation left whole.
-#  2. UV_SPAN_MAX / UV_CELL: uv_split buckets a submesh; bucket span ~= CELL +
-#     triangle_span (~12.6 worst), then _rebase MIN-FLOOR shifts it into
-#     [0, span+1) - always positive, inside the 16-tile window, and no
-#     triangle can cross the window seam.
+# 1. UV_EDGE_MAX: tessellate caps every triangle's UV extent (max-min over any pair
+# is an edge, so all-edges<=E => triangle span<=E). Kills single high-tiling
+# triangles that world-length tessellation left whole.
+# 2. UV_SPAN_MAX / UV_CELL: uv_split buckets a submesh; bucket span ~= CELL +
+# triangle_span (~12.6 worst), then _rebase MIN-FLOOR shifts it into
+# [0, span+1) - always positive, inside the 16-tile window, and no
+# triangle can cross the window seam.
 UV_EDGE_MAX = 4.0
 UV_SPAN_MAX = 8.0
 UV_CELL = 8.0
@@ -48,7 +48,7 @@ UV_GARBAGE = 64.0
 
 def geometry_submeshes(geo):
     """SAW Geometry -> [{'mat': Material, 'tris': [((pos,uv,col) x3)]}] in LOCAL
-    space. Vertex colour = prelit (day) if present, else material colour."""
+ space. Vertex colour = prelit (day) if present, else material colour."""
     uvs = geo.uvs[0] if geo.uvs else [(0.0, 0.0)] * geo.num_vertices
     pre = geo.prelit_colors
     out = []
@@ -87,13 +87,13 @@ def geometry_submeshes(geo):
 
 def tessellate(tris):
     """Split triangles until every edge satisfies BOTH: world length <= TESS_EDGE
-    (guard-band culling) AND UV span <= UV_EDGE_MAX tiles. The UV limit is the
-    striped-road fix: a high-tiling quad with a short world edge (a wall/road
-    tiling 16x over a few units) never tripped the world-length test, so it
-    stayed a single triangle spanning >16 UV tiles -> the s16*4096 packing
-    (+-8 tile range) clamped it -> stripes. Splitting by UV span too caps every
-    triangle's UV extent so uv_split() can then bucket the submesh clamp-free.
-    Queue-based; safety cap prevents runaway on pathological tiling."""
+ (guard-band culling) AND UV span <= UV_EDGE_MAX tiles. The UV limit is the
+ striped-road fix: a high-tiling quad with a short world edge (a wall/road
+ tiling 16x over a few units) never tripped the world-length test, so it
+ stayed a single triangle spanning >16 UV tiles -> the s16*4096 packing
+ (+-8 tile range) clamped it -> stripes. Splitting by UV span too caps every
+ triangle's UV extent so uv_split() can then bucket the submesh clamp-free.
+ Queue-based; safety cap prevents runaway on pathological tiling."""
     def mid(a, b):
         return (
             tuple((a[0][k] + b[0][k]) * 0.5 for k in range(3)),
@@ -130,13 +130,13 @@ def tessellate(tris):
 
 def _rebase(tris):
     """Integer-shift UVs so the span STARTS in [0,1) tile. The GE reads 16-bit
-    UVs as UNSIGNED u1.15 (no signed path in hardware) - with the engine's
-    TexScale(8,8) the window is [0,16) tiles, wrapping mod 16. Negative values
-    alias to +16 tiles; a triangle whose UV range crosses 0 then interpolates
-    the LONG way round the window (~16-span reversed repeats) = the striped
-    roads / stretched interiors bug. Min-floor keeps every value in
-    [0, span+1) which fits the window for any span <= 15 tiles (uv_split caps
-    real spans at ~12.6). NEVER centre spans around 0."""
+ UVs as UNSIGNED u1.15 (no signed path in hardware) - with the engine's
+ TexScale(8,8) the window is [0,16) tiles, wrapping mod 16. Negative values
+ alias to +16 tiles; a triangle whose UV range crosses 0 then interpolates
+ the LONG way round the window (~16-span reversed repeats) = the striped
+ roads / stretched interiors bug. Min-floor keeps every value in
+ [0, span+1) which fits the window for any span <= 15 tiles (uv_split caps
+ real spans at ~12.6). NEVER centre spans around 0."""
     us = [p[1][0] for t in tris for p in t]
     vs = [p[1][1] for t in tris for p in t]
     mu = math.floor(min(us))
@@ -149,7 +149,7 @@ def _rebase(tris):
 
 def uv_split(tris):
     """[[tris]] partitioned so each part's UV span <= UV_SPAN_MAX; each part
-    rebased by integer floor of its min UV (tiling-safe)."""
+ rebased by integer floor of its min UV (tiling-safe)."""
     us = [p[1][0] for t in tris for p in t]
     vs = [p[1][1] for t in tris for p in t]
     if not us:
@@ -167,8 +167,8 @@ def uv_split(tris):
 
 def _sanitize_uv(tris, tex="?"):
     """Corrupt-UV guard: if a submesh's UV span is absurd (> UV_GARBAGE tiles) the
-    source floats are garbage (NaN/inf/huge). Per-vertex fract-wrap so every UV lands
-    in [0,1) - identical under GU_REPEAT, span < 1, no clamp, no tessellation blow-up."""
+ source floats are garbage (NaN/inf/huge). Per-vertex fract-wrap so every UV lands
+ in [0,1) - identical under GU_REPEAT, span < 1, no clamp, no tessellation blow-up."""
     us = [p[1][0] for t in tris for p in t]
     vs = [p[1][1] for t in tris for p in t]
     if not us:
@@ -186,7 +186,7 @@ def _sanitize_uv(tris, tex="?"):
 
 def process_geometry(geo):
     """Full float pipeline for one SAW Geometry:
-    -> [{'mat': Material, 'tris': [...] }] tessellated + UV-safe."""
+ -> [{'mat': Material, 'tris': [...] }] tessellated + UV-safe."""
     out = []
     for sub in geometry_submeshes(geo):
         tris = _sanitize_uv(sub["tris"],

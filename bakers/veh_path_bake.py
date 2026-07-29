@@ -8,11 +8,11 @@ SAME region grid as the target chunk set (origin/tile from its regions.bin), so
 the runtime loads a 3x3 window around the camera exactly like the ped paths.
 
 vehpath_<rx>_<ry>.bin layout (LE):
-  'VPTH' u16 nnodes u16 nlinks
-  nnodes * { f32 x,y,z; u8 width8 (units*8, cap 255); u8 spawnProb (0-15);
-             u8 flags (bit0 water, bit1 switchedOff, bit2 deadEnd);
-             u8 nlinks; u16 firstLink; u16 pad }
-  nlinks * u32 ref: (rx<<24)|(ry<<16)|localIdx  - target tile + local index
+ 'VPTH' u16 nnodes u16 nlinks
+ nnodes * { f32 x,y,z; u8 width8 (units*8, cap 255); u8 spawnProb (0-15);
+ u8 flags (bit0 water, bit1 switchedOff, bit2 deadEnd);
+ u8 nlinks; u16 firstLink; u16 pad }
+ nlinks * u32 ref: (rx<<24)|(ry<<16)|localIdx - target tile + local index
 Runtime resolves cross-tile refs against loaded tiles (miss = link ignored).
 
 Usage: python veh_path_bake.py <chunks_dir_with_regions.bin> [out_dir=same]

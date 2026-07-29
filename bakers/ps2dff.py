@@ -14,25 +14,25 @@ attributes, slots XYZ/UV/RGBA). Skinned peds/vehicles use different pipelines
 and land with their own phase.
 
 API:
-    model = load_dff(open(p,'rb').read())
-    model.geometries[i] -> Geo(verts, uvs, day, night, tris, materials)
-    model.frames[i]     -> Frame(name, rot, pos, parent, ltm_rot, ltm_pos)
-    tris entries: (a, b, c, matIndex)
+ model = load_dff(open(p,'rb').read())
+ model.geometries[i] -> Geo(verts, uvs, day, night, tris, materials)
+ model.frames[i] -> Frame(name, rot, pos, parent, ltm_rot, ltm_pos)
+ tris entries: (a, b, c, matIndex)
 
 A clump is a FRAME TREE with atomics (geometry) hung off its nodes, and an
-atomic's geometry is stored in ITS FRAME's space.  Whether that frame matters
+atomic's geometry is stored in ITS FRAME's space. Whether that frame matters
 depends on how SA loads the model, and the two paths DISAGREE:
 
-  * ATOMIC models (IDE objs/tobj) - CFileLoader::SetRelatedModelInfoCB
-    (0x537150) hands the atomic to the model info and then does
-    `RpAtomicSetFrame(atomic, RwFrameCreate())`: the authored frame is THROWN
-    AWAY and replaced by an identity one.  The offset an artist left on
-    aw_streettree1 / lhouse_barrier* / grassplant is therefore NOT part of the
-    in-game model - baking it would move those props metres off.
-  * CLUMP models (IDE anim -> CClumpModelInfo + bHasAnimBlend ->
-    CAnimatedBuilding) - CFileLoader::LoadClumpFile keeps the whole clump,
-    frame tree included, so the frame offsets ARE real (vrocksign03 sits
-    +21.4m up the vrockpole).
+ * ATOMIC models (IDE objs/tobj) - CFileLoader::SetRelatedModelInfoCB
+ (0x537150) hands the atomic to the model info and then does
+ `RpAtomicSetFrame(atomic, RwFrameCreate())`: the authored frame is THROWN
+ AWAY and replaced by an identity one. The offset an artist left on
+ aw_streettree1 / lhouse_barrier* / grassplant is therefore NOT part of the
+ in-game model - baking it would move those props metres off.
+ * CLUMP models (IDE anim -> CClumpModelInfo + bHasAnimBlend ->
+ CAnimatedBuilding) - CFileLoader::LoadClumpFile keeps the whole clump,
+ frame tree included, so the frame offsets ARE real (vrocksign03 sits
+ +21.4m up the vrockpole).
 
 load_dff stays faithful to the file: vertices come out FRAME-LOCAL and each Geo
 carries its frame index/name plus the composed local-to-model matrix, so the
@@ -79,7 +79,8 @@ FMT_NATIVE = 0x01000000
 # 8x too large, and because the engine fit-scales wheels from handling the tyres
 # still look right, which is what hid this for so long.
 POS_SCALE_WORLD = 1.0 / 128.0      # world + interiors: s16 9.7 fixed
-POS_SCALE_VEHICLE = 1.0 / 1024.0   # vehicle pipeline:  s16 6.10 fixed
+POS_SCALE_VEHICLE = 1.0 / 1024.0   # vehicle pipeline: s16 6.10 fixed
+POS_SCALE_SKIN = 1.0 / 1024.0      # skinned peds + cutscene actors: s16 6.10 fixed
 POS_SCALE = POS_SCALE_WORLD        # default for the world decode path
 UV_SCALE = 1.0 / 4096.0        # uv: s16 12.4 fixed
 
@@ -106,9 +107,9 @@ def _find_all(b, off, end, cid):
 
 def parse_uvanimdict(b):
     """RpUVAnim dict prepended at offset 0 of an ANIMATED DFF ('UVANIMDICT' 0x2B,
-    before the CLUMP). Returns {anim_name.lower(): (du_dt, dv_dt)} = net UV-scroll
-    rate (translation delta / duration, UV-units/sec). Empty when there is no dict
-    (the common case) or the anim is a rotate/pulse (net translation ~0)."""
+ before the CLUMP). Returns {anim_name.lower(): (du_dt, dv_dt)} = net UV-scroll
+ rate (translation delta / duration, UV-units/sec). Empty when there is no dict
+ (the common case) or the anim is a rotate/pulse (net translation ~0)."""
     if len(b) < 28 or struct.unpack_from("<I", b, 0)[0] != C_UVANIMDICT:
         return {}
     out = {}
@@ -141,7 +142,7 @@ class Mat:
     color: tuple = (255, 255, 255, 255)
     texture: str = ""
     mask: str = ""
-    uvanim_name: str = ""     # RpUVAnim (0x135) referenced anim name (dict key), or ""
+    uvanim_name: str = ""     # RpUVAnim (0x135) referenced anim name (dict key), or 
     uvscroll: tuple = None    # (du_dt, dv_dt) UV-units/sec, resolved from the dict, or None
 
 
@@ -149,10 +150,10 @@ class Mat:
 class Frame:
     """One node of the clump's frame tree (RW FrameList stream record).
 
-    `rot`/`pos` are the AUTHORED local matrix (row-vector convention: a point is
-    transformed v*rot + pos, exactly librw's right/up/at rows); `ltm_*` is the
-    same composed down the parent chain = local-to-MODEL.  `parent` is -1 at the
-    root."""
+ `rot`/`pos` are the AUTHORED local matrix (row-vector convention: a point is
+ transformed v*rot + pos, exactly librw's right/up/at rows); `ltm_*` is the
+ same composed down the parent chain = local-to-MODEL. `parent` is -1 at the
+ root."""
     name: str = ""
     rot: tuple = IDENT_ROT
     pos: tuple = (0.0, 0.0, 0.0)
@@ -199,14 +200,14 @@ def _unpack_info(cmd):
 
 def _decode_weight_word(w):
     """Decode ONE of a skinned vertex's four V4_32 skin words (librw
-    genericUninstanceCB / skinUninstanceCB, ps2.cpp):
+ genericUninstanceCB / skinUninstanceCB, ps2.cpp):
 
-        weight = float32(w & ~0x3FF)          # low 10 bits stolen for the index
-        boneIndex = ((w & 0x3FF) >> 2) - 1     # 1-based on disc; 0 => unused
+ weight = float32(w & ~0x3FF) # low 10 bits stolen for the index
+ boneIndex = ((w & 0x3FF) >> 2) - 1 # 1-based on disc; 0 => unused
 
-    Returns (weight_float, boneIndex) with boneIndex 0-based into the geometry's
-    bone-matrix array (== the sa_skin PC index space).  A zero weight means the
-    slot is unused -> index 0 (a valid bone, contributes nothing at weight 0)."""
+ Returns (weight_float, boneIndex) with boneIndex 0-based into the geometry's
+ bone-matrix array (== the sa_skin PC index space). A zero weight means the
+ slot is unused -> index 0 (a valid bone, contributes nothing at weight 0)."""
     wf = struct.unpack("<f", struct.pack("<I", w & 0xFFFFFC00))[0]
     rawidx = (w & 0x3FF) >> 2
     bi = rawidx - 1 if rawidx else 0
@@ -237,9 +238,9 @@ def _parse_chain(raw, tristrip, pos_scale=POS_SCALE):
     def flush(nverts):
         """Emit one VU1 batch: the attributes gathered since the previous ITOP.
 
-        `pend` is NOT cleared unless the batch actually emits - broken-out DMAref
-        attributes accumulate across several DMA tags before the DMAcnt carrying
-        their ITOP arrives, and clearing early would throw them away."""
+ `pend` is NOT cleared unless the batch actually emits - broken-out DMAref
+ attributes accumulate across several DMA tags before the DMAcnt carrying
+ their ITOP arrives, and clearing early would throw them away."""
         nonlocal first, pend
         # VU1 holds at most ~256 verts per batch; a larger ITOP is a desync
         # (data misread as a command) -> reject rather than read past payload.
@@ -393,7 +394,7 @@ def _parse_material(b, off, end):
 
 
 def _mat_mul(a, b):
-    """row-vector 3x3 compose: v*(a.b) == (v*a)*b  (librw Matrix::mult_)."""
+    """row-vector 3x3 compose: v*(a.b) == (v*a)*b (librw Matrix::mult_)."""
     return tuple(sum(a[r * 3 + k] * b[k * 3 + c] for k in range(3))
                  for r in range(3) for c in range(3))
 
@@ -405,9 +406,9 @@ def _pt_mul(p, m, t):
 def _parse_framelist(b, fl_off, fl_size):
     """RW FrameList -> Frame[] with composed local-to-model matrices.
 
-    Stream record (librw FrameStreamData, 56 B): float32 right[3] up[3] at[3],
-    float32 pos[3], int32 parent, int32 matrixFlags - then one EXTENSION chunk
-    per frame, whose 0x253F2FE node carries the frame NAME (absent = unnamed)."""
+ Stream record (librw FrameStreamData, 56 B): float32 right[3] up[3] at[3],
+ float32 pos[3], int32 parent, int32 matrixFlags - then one EXTENSION chunk
+ per frame, whose 0x253F2FE node carries the frame NAME (absent = unnamed)."""
     st, st_size = _find(b, fl_off, fl_off + fl_size, C_STRUCT)
     if st is None:
         return []
@@ -452,8 +453,8 @@ def _parse_framelist(b, fl_off, fl_size):
 def _parse_atomics(b, cl_off, cl_size):
     """Clump ATOMIC records -> [(frameIndex, geometryIndex, flags)].
 
-    Struct is 4 x int32 (frame, geometry, flags, pad) at RW >= 3.4, which every
-    SA disc build is; the geometry index addresses the clump's GeomList."""
+ Struct is 4 x int32 (frame, geometry, flags, pad) at RW >= 3.4, which every
+ SA disc build is; the geometry index addresses the clump's GeomList."""
     out = []
     for a_off, a_size in _find_all(b, cl_off, cl_off + cl_size, C_ATOMIC):
         s_off, s_size = _find(b, a_off, a_off + a_size, C_STRUCT)
@@ -466,12 +467,12 @@ def _parse_atomics(b, cl_off, cl_size):
 
 def _weld_and_triangulate(streams, geo):
     """librw objUninstance semantics: weld duplicate stream verts (first-seen
-    order, key pos+uv+colours+skin), then walk each mesh's strip emitting
-    triangles, skipping ADC restarts and degenerates. streams: [(MeshStream,
-    matIndex)].  For skinned peds the bone weights/indices are part of the weld
-    key (librw findVertexSkin masks 0x10000): two verts identical in pos/uv/colour
-    but bound to different bones must NOT collapse, and boneIdx/boneW stay parallel
-    to geo.verts through the weld exactly as the static attributes do."""
+ order, key pos+uv+colours+skin), then walk each mesh's strip emitting
+ triangles, skipping ADC restarts and degenerates. streams: [(MeshStream,
+ matIndex)]. For skinned peds the bone weights/indices are part of the weld
+ key (librw findVertexSkin masks 0x10000): two verts identical in pos/uv/colour
+ but bound to different bones must NOT collapse, and boneIdx/boneW stay parallel
+ to geo.verts through the weld exactly as the static attributes do."""
     keymap = {}
 
     def emit(ms, i):
@@ -511,15 +512,15 @@ def _weld_and_triangulate(streams, geo):
 
 def _read_native_skin(b, off, size):
     """RW native-skin plugin (ID_SKIN 0x116) on a PS2 geometry - librw
-    ps2::readNativeSkin.  Inner STRUCT: u32 platform(==4); header[4] =
-    {numBones, numUsedBones, numWeights, pad}; u8 usedBones[numUsedBones];
-    f32 inverseMatrices[numBones][16]; skip 16B; skin-split data
-    {i32 boneLimit, numMeshes, rleSize [, remap tables when numMeshes>0]}.
+ ps2::readNativeSkin. Inner STRUCT: u32 platform(==4); header[4] =
+ {numBones, numUsedBones, numWeights, pad}; u8 usedBones[numUsedBones];
+ f32 inverseMatrices[numBones][16]; skip 16B; skin-split data
+ {i32 boneLimit, numMeshes, rleSize [, remap tables when numMeshes>0]}.
 
-    The per-vertex weights/indices are NOT in this plugin - on PS2 they ride the
-    native geometry VIF stream as the 5th attribute (see _parse_chain).  Returns
-    {numBones,numUsed,numWeights,used,invBind} (invBind = numBones x 16 floats,
-    mesh-space, byte-identical to the PC twin)."""
+ The per-vertex weights/indices are NOT in this plugin - on PS2 they ride the
+ native geometry VIF stream as the 5th attribute (see _parse_chain). Returns
+ {numBones,numUsed,numWeights,used,invBind} (invBind = numBones x 16 floats,
+ mesh-space, byte-identical to the PC twin)."""
     inner_id = struct.unpack_from("<I", b, off)[0]
     assert inner_id == C_STRUCT, "native skin: no inner struct"
     p = off + 12
@@ -617,7 +618,7 @@ def load_dff(b, pos_scale=POS_SCALE):
 # our DMA-tag walk survives layouts its resync-scan skips, and it carries the
 # correct day colours (gvcslib's own decoder packs the HIGH bytes = the NIGHT
 # set - see docs/gta_sa_psp/research/ps2_dff_format.md). Night colours ride
-# along in colors_night for the upcoming .night sidecar export.
+# along in colors_night for the upcoming.night sidecar export.
 #
 # Positions stay FRAME-LOCAL (== what the atomic path renders, see the module
 # docstring); the frame index/name and its local-to-model matrix ride along on

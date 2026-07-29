@@ -95,6 +95,28 @@ class TexPool:
                 import numpy as _np
                 if len(_np.unique(_np.frombuffer(bytes(rgba), _np.uint32))) <= 16:
                     fmt = "T4"
+            # DECAL first, before authoring: dust, stains and cracks laid on a floor or a
+            # wall. They must NOT go down the cutout path - their ink is faint (background
+            # near alpha 17, marks 64-138) and an alpha test shatters it into hard black
+            # specks, which is exactly how the dust in CJ's house looked. The world exporter
+            # already classifies these (sa_export_pmap); interiors go through this packer
+            # instead and never did, so the class is applied here on the same terms: sparse
+            # ink, nothing solid, and either a two-colour image or a name that says crack.
+            decal = False
+            al = bytes(rgba)[3::4]
+            if al:
+                opaque_frac = sum(1 for x in al if x >= 240) / len(al)
+                covered_frac = sum(1 for x in al if x >= 64) / len(al)
+                rgbset = set()
+                for i in range(0, len(rgba), 4):
+                    rgbset.add(bytes(rgba[i:i + 3]))
+                    if len(rgbset) > 2:
+                        break
+                decal = ("crack" in nm) or (opaque_frac < 0.10 and covered_frac < 0.40
+                                            and len(rgbset) <= 2)
+                if os.environ.get("TEX_ALPHA_DIAG"):
+                    sys.stderr.write("ALPHA %-26s %3dx%-3d opaque=%.3f covered=%.3f colours=%d decal=%d\n"
+                                     % (nm, w, h, opaque_frac, covered_frac, len(rgbset), decal))
             try:
                 t = psp_tex.author_psp_texture(rgba, w, h, fmt=fmt, mipmaps=False)
                 # author classifies alpha only inside its [96..200) mid-band;
@@ -104,11 +126,13 @@ class TexPool:
                 # over >2% of pixels forces blend (or cutout if mostly holes).
                 if t.get("alpha_mode", 0) == 0:
                     import numpy as _np
-                    al = _np.frombuffer(bytes(rgba), _np.uint8)[3::4]
-                    trans = int((al < 32).sum())
-                    mid = int(((al >= 32) & (al < 250)).sum())
-                    if trans + mid > al.size * 0.02:
+                    al2 = _np.frombuffer(bytes(rgba), _np.uint8)[3::4]
+                    trans = int((al2 < 32).sum())
+                    mid = int(((al2 >= 32) & (al2 < 250)).sum())
+                    if trans + mid > al2.size * 0.02:
                         t["alpha_mode"] = 1 if trans > mid else 2
+                if decal:
+                    t["alpha_mode"] = 3        # blended, biased forward, drawn in the decal pass
                 self.list.append(_make_texture(t))
                 idx = len(self.list) - 1
             except Exception as e:

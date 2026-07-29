@@ -13,7 +13,7 @@ true alpha (T4/T8, palette keeps RGBA) and set the texture's alpha_mode byte
 (num_levels byte 1) to 1 so the renderer draws it in the blended alpha pass.
 
 Usage:
-  fix_shadow_decals.py <file-or-dir> [more...] --db <fp_prefix> [--dry]
+ fix_shadow_decals.py <file-or-dir> [more...] --db <fp_prefix> [--dry]
 v3 handled; in-place rewrite (make backups upstream if wanted).
 """
 import os

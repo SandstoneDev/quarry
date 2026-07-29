@@ -12,33 +12,33 @@ horn, rain, swim, frontend UI, CJ pain grunts).
 
 sfx.bin (little-endian) ========================================================
 Header @0x00 (0x20):
-  u32 magic 'SFXB' = 0x42584653
-  u32 version = 1
-  u32 nBanks, nSounds
-  u32 blobOff           # file offset of the VAG blob
-  u32 blobSize
-  u32 sampleRateMax     # (info) highest source rate baked
-  u32 reserved
+ u32 magic 'SFXB' = 0x42584653
+ u32 version = 1
+ u32 nBanks, nSounds
+ u32 blobOff # file offset of the VAG blob
+ u32 blobSize
+ u32 sampleRateMax # (info) highest source rate baked
+ u32 reserved
 BankRec[nBanks] @0x20 (0x10):
-  u16 bankId            # eSoundBank
-  i16 slotHint          # eSoundBankSlot to preload into (-1 = addressed by bankId only)
-  u32 firstSound        # index into SoundRec[]
-  u16 numSounds
-  u16 pad
-  u32 pad2
+ u16 bankId # eSoundBank
+ i16 slotHint # eSoundBankSlot to preload into (-1 = addressed by bankId only)
+ u32 firstSound # index into SoundRec[]
+ u16 numSounds
+ u16 pad
+ u32 pad2
 SoundRec[nSounds] (0x18):
-  u32 vagOff            # offset into the VAG blob (relative to blobOff)
-  u32 vagBytes          # ADPCM byte length (multiple of 16)
-  u32 rate              # Hz
-  u32 loopStart         # in VAG frames into the blob (0xFFFFFFFF = no loop)
-  i16 headroom          # gain trim (hundredths dB); GetSoundHeadroom = headroom/100
-  u16 pad
-  u32 pad2
+ u32 vagOff # offset into the VAG blob (relative to blobOff)
+ u32 vagBytes # ADPCM byte length (multiple of 16)
+ u32 rate # Hz
+ u32 loopStart # in VAG frames into the blob (0xFFFFFFFF = no loop)
+ i16 headroom # gain trim (hundredths dB); GetSoundHeadroom = headroom/100
+ u16 pad
+ u32 pad2
 VAG blob @ blobOff: concatenated VAG ADPCM bodies (each 16-byte aligned).
 ================================================================================
 
-Run:  python tools/audio_bake.py            # bake + deploy to all data/ dirs
-      python tools/audio_bake.py measure     # parse + sizes only
+Run: python tools/audio_bake.py # bake + deploy to all data/ dirs
+ python tools/audio_bake.py measure # parse + sizes only
 """
 import os
 import sys
@@ -86,13 +86,13 @@ BANKS = [
     # (0 accel loop, 1 cruise loop, 2 off/decel), D-bank = 2 (0 rev, 1 idle).
     # v1 = 6 category pairs (sedan/sport/truck/van/scooter/sportbike); the runtime
     # maps each model to the nearest via vehicleAudioSettings. bankId-addressed. --
-    (8,   -1, "ENG_90S_P"),         # sedan player  (bravura)
+    (8,   -1, "ENG_90S_P"),         # sedan player (bravura)
     (7,   -1, "ENG_90S_D"),         # sedan dummy
-    (38,  -1, "ENG_COBRA_P"),       # sport player  (infernus)
+    (38,  -1, "ENG_COBRA_P"),       # sport player (infernus)
     (37,  -1, "ENG_COBRA_D"),
-    (84,  -1, "ENG_MACK_P"),        # truck player  (linerun)
+    (84,  -1, "ENG_MACK_P"),        # truck player (linerun)
     (83,  -1, "ENG_MACK_D"),
-    (137, -1, "ENG_VAN_P"),         # van player    (ambulance/moonbeam)
+    (137, -1, "ENG_VAN_P"),         # van player (ambulance/moonbeam)
     (136, -1, "ENG_VAN_D"),
     (119, -1, "ENG_SCOOTER_P"),     # scooter player (faggio)
     (118, -1, "ENG_SCOOTER_D"),
@@ -114,7 +114,7 @@ BANK_DROP = { 27, 74, 128 }        # GENRL_BULLET_HITS, GENRL_HORN, GENRL_SWIMMI
 # CollisionAudio -> {0x02 metal-scrape, 0x1D carped/thud, 0x21 solid-wood, 0x22 concrete};
 # MenuManager -> FRONTEND_GAME id 25 (AE_FRONTEND_START), FRONTEND_MENU ids 0/4/6. ~520 KB.
 BANK_KEEP = {
-    39: {0x02, 0x1D, 0x21, 0x22},  # GENRL_COLLISIONS  (339 KB -> ~15 KB)
+    39: {0x02, 0x1D, 0x21, 0x22},  # GENRL_COLLISIONS (339 KB -> ~15 KB)
     59: {25, 29, 30},               # GENRL_FRONTEND_GAME: 25=AE_FRONTEND_START, 29/30=mission passed/failed jingles (44.1kHz ~1.5s)
     60: {0, 4, 6},                  # GENRL_FRONTEND_MENU (37 KB -> ~8 KB)
     138: {24, 25},                  # GENRL_VEHICLE_GEN: TARSKIDTWIN1/2 skid loops (b442)
@@ -184,14 +184,48 @@ def bake(measure_only=False, out_dir=None):
 
     # --- custom bank 250: MISSION passed/failed jingle from the BEATS MUSIC STREAM (b542).
     # The mission-passed sound is NOT an SFX bank (b540 grabbed the wrong one -> noise); per the
-    # modding docs + the reference notes (m_bPlayingMissionCompleteTrack) it is BEATS track 182 (Mission
+    # modding docs it is BEATS track 182 (Mission
     # Complete #1 = passed) / 183 (#2 = failed). radio_bake extracts + decrypts the stream track
     # -> OGG; soundfile decodes -> mono 16-bit PCM -> VAG. Sound 0 = passed, 1 = failed.
+    # PS2 DISC PATH FIRST. The stream elements are already SPU ADPCM, which is precisely
+    # what a VAG body in this bank is, so the jingle needs no decode, no resample and no
+    # encoder - the bytes go in as they come off the disc. That also means no numpy and no
+    # soundfile, which is why this used to be skipped on a PS2 convert and the mission
+    # end-sound never played. BEATS 182 = passed, 183 = failed, both 9.6 s at 24 kHz.
+    jingle_done = False
     try:
-        # DEP GATE: the mission-passed jingle is decoded from the BEATS radio STREAM and
-        # needs radio_bake + numpy + soundfile (heavy). Quarry sets QUARRY_SFX_NO_JINGLE=1
-        # so a PS2 SFX-only bake builds on the Python stdlib alone - the jingle is radio
-        # engine guards a missing bank 250. Raise BEFORE importing the heavy modules.
+        import sa_ps2_stream as _S
+        if os.path.isdir(os.path.join(SA, "STREAMS")):
+            _packs, _tracks = _S.load_index(SA)
+            jfirst = len(sound_recs)
+            for tid in (182, 183):
+                h = _S.read_header(SA, _packs, _tracks, tid)
+                with open(h["path"], "rb") as _f:
+                    _f.seek(h["offset"] + _S.DATA)
+                    raw = _f.read(h["size"])
+                body = _S.channel_bytes(raw, 0, h["bytes_per_ch"])     # mono is enough for a sting
+                keep = int(7.2 * h["rate"] / _S.SAMPLES_PER_FRAME) * _S.FRAME
+                body = bytearray(body[:min(keep, len(body))])
+                if len(body) < _S.FRAME:
+                    raise RuntimeError("BEATS %d empty" % tid)
+                body[-_S.FRAME + 1] |= 0x01           # mark the last frame END so playback stops there
+                off = len(blob); blob += bytes(body)
+                if len(blob) & 0xF:
+                    blob += b"\x00" * (0x10 - (len(blob) & 0xF))
+                sound_recs.append((off, len(body), h["rate"], sa_audio.NO_LOOP, 0))
+                rate_max = max(rate_max, h["rate"])
+            bank_recs.append((250, -1, jfirst, 2))
+            print("  bank 250 MISSION_JINGLE      sounds=2 (BEATS 182 passed / 183 failed, PS2 ADPCM passthrough)")
+            jingle_done = True
+    except Exception as _e:
+        print("  mission jingle (PS2 path) skipped:", _e)
+
+    try:
+        if jingle_done:
+            raise RuntimeError("already baked from the PS2 stream")
+        # DEP GATE for the PC dev loop: that path decodes an OGG and needs radio_bake +
+        # numpy + soundfile (heavy). Quarry sets QUARRY_SFX_NO_JINGLE=1 to keep a bake on
+        # the stdlib alone; the engine guards a missing bank 250.
         if os.environ.get("QUARRY_SFX_NO_JINGLE") == "1":
             raise RuntimeError("QUARRY_SFX_NO_JINGLE=1 - mission jingle deferred to the radio pass")
         import radio_bake, soundfile as _sf, io as _io, numpy as _np
@@ -268,8 +302,8 @@ def bake(measure_only=False, out_dir=None):
 
 if __name__ == "__main__":
     # Usage: audio_bake.py [measure] [<outDataDir>]
-    #   measure       -> parse + sizes only, no write
-    #   <outDataDir>  -> write <dir>/audio/sfx.bin (Quarry); omit for the legacy deploy list
+    # measure -> parse + sizes only, no write
+    # <outDataDir> -> write <dir>/audio/sfx.bin (Quarry); omit for the legacy deploy list
     _args = sys.argv[1:]
     _measure = "measure" in _args
     _outs = [a for a in _args if a != "measure"]

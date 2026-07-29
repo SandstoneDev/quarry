@@ -16,24 +16,24 @@ Authored blob layout
 ``author_psp_texture`` returns a dict (NOT a packed file - the engine owns the
 container) with:
 
-    gu_pixfmt   int   GU_PSM_T8 (5) or GU_PSM_T4 (4): the texture pixel format
-                      passed to ``sceGuTexMode``.
-    gu_clutfmt  int   GU_PSM_8888 (3): CLUT entry format for ``sceGuClutMode``.
-    width       int   pixel width  (== input w).
-    height      int   pixel height (== input h).
-    swizzle     int   1 - texel_bytes is swizzled (upload with GU_TRUE).
-    clut_entries int  256 (T8) or 16 (T4).
-    texel_bytes bytes PSP-swizzled index plane.  Row stride in bytes is
-                      ``rwtex.byte_width(fmt, w)`` (== w for T8; max(w//2,16) for
-                      T4).  Length = byte_width * h.
-    clut_bytes  bytes CLUT: clut_entries * RGBA8888, alpha LAST byte, stored
-                      LINEARLY (index i -> clut_bytes[i*4:i*4+4]), matching the
-                      RW-PSP convention used by gvcslib.rwtex.decode_rgba.
+ gu_pixfmt int GU_PSM_T8 (5) or GU_PSM_T4 (4): the texture pixel format
+ passed to ``sceGuTexMode``.
+ gu_clutfmt int GU_PSM_8888 (3): CLUT entry format for ``sceGuClutMode``.
+ width int pixel width (== input w).
+ height int pixel height (== input h).
+ swizzle int 1 - texel_bytes is swizzled (upload with GU_TRUE).
+ clut_entries int 256 (T8) or 16 (T4).
+ texel_bytes bytes PSP-swizzled index plane. Row stride in bytes is
+ ``rwtex.byte_width(fmt, w)`` (== w for T8; max(w//2,16) for
+ T4). Length = byte_width * h.
+ clut_bytes bytes CLUT: clut_entries * RGBA8888, alpha LAST byte, stored
+ LINEARLY (index i -> clut_bytes[i*4:i*4+4]), matching the
+ RW-PSP convention used by gvcslib.rwtex.decode_rgba.
 
 Quantisation
 ------------
 Colours are reduced with PIL's MEDIANCUT quantiser to 256 (T8) or 16 (T4)
-entries.  Alpha is quantised too: the RGBA image is fed to PIL in RGBA mode so
+entries. Alpha is quantised too: the RGBA image is fed to PIL in RGBA mode so
 the palette carries per-entry alpha (alpha LAST byte in the emitted CLUT).
 
 Decode-back
@@ -68,22 +68,22 @@ CLUT_ENTRY_BYTES = 4  # RGBA8888, alpha last
 def _quantize(rgba, w, h, ncolors):
     """Quantise an RGBA8888 byte image to <=ncolors.
 
-    Returns (indices: bytes length w*h, clut: bytes ncolors*4 RGBA8888 alpha
-    last, pal_img: PIL P-image, alpha_varies: bool).  The CLUT is padded out to
-    exactly ``ncolors`` entries (trailing entries zero).
+ Returns (indices: bytes length w*h, clut: bytes ncolors*4 RGBA8888 alpha
+ last, pal_img: PIL P-image, alpha_varies: bool). The CLUT is padded out to
+ exactly ``ncolors`` entries (trailing entries zero).
 
-    If the alpha channel carries SHAPE (transparent / semi-transparent regions:
-    cutout foliage, ground cracks, wall graffiti), quantise in RGBA space with
-    FASTOCTREE - the only PIL method that clusters alpha - so texels that
-    differ ONLY in alpha get DISTINCT palette entries.  The old RGB-only
-    MEDIANCUT + per-entry alpha AVERAGING crushed such textures: a black-on-alpha
-    crack (one RGB colour, whole shape in the alpha channel) collapsed to a
-    single palette entry whose alpha was the flat mean -> the crack read as a
-    uniform near-transparent quad (invisible) and soft foliage edges hardened.
+ If the alpha channel carries SHAPE (transparent / semi-transparent regions:
+ cutout foliage, ground cracks, wall graffiti), quantise in RGBA space with
+ FASTOCTREE - the only PIL method that clusters alpha - so texels that
+ differ ONLY in alpha get DISTINCT palette entries. The old RGB-only
+ MEDIANCUT + per-entry alpha AVERAGING crushed such textures: a black-on-alpha
+ crack (one RGB colour, whole shape in the alpha channel) collapsed to a
+ single palette entry whose alpha was the flat mean -> the crack read as a
+ uniform near-transparent quad (invisible) and soft foliage edges hardened.
 
-    Opaque / uniform-alpha textures keep MEDIANCUT on RGB (better colour
-    fidelity) with the (uniform) alpha recovered per entry - unchanged.
-    """
+ Opaque / uniform-alpha textures keep MEDIANCUT on RGB (better colour
+ fidelity) with the (uniform) alpha recovered per entry - unchanged.
+ """
     a_vals = rgba[3::4]
     alpha_varies = bool(a_vals) and (max(a_vals) - min(a_vals)) > 16
 
@@ -138,13 +138,13 @@ def _quantize(rgba, w, h, ncolors):
 def _remap_rgba_to_clut(rgba, n, clut, count):
     """Nearest-entry map RGBA texels to an RGBA CLUT (colour+alpha distance).
 
-    Used to build mip levels for alpha-carrying textures WITHOUT dropping alpha
-    (PIL's palette-remap resizes in RGB and would flatten cutout edges).  Alpha
-    is weighted equally with the colour channels so a resized cutout edge snaps
-    to the right transparency step instead of a wrong opaque/clear entry.  Only
-    the first ``count`` (actually-used) entries are candidates so trailing
-    zero-padding cannot steal texels.
-    """
+ Used to build mip levels for alpha-carrying textures WITHOUT dropping alpha
+ (PIL's palette-remap resizes in RGB and would flatten cutout edges). Alpha
+ is weighted equally with the colour channels so a resized cutout edge snaps
+ to the right transparency step instead of a wrong opaque/clear entry. Only
+ the first ``count`` (actually-used) entries are candidates so trailing
+ zero-padding cannot steal texels.
+ """
     ent = [(clut[i * 4], clut[i * 4 + 1], clut[i * 4 + 2], clut[i * 4 + 3])
            for i in range(max(count, 1))]
     out = bytearray(n)
@@ -177,11 +177,11 @@ def _swizzle_level(indices, lw, lh, fmt):
 def _pack_t4(indices, w, h):
     """Pack one-byte-per-pixel indices into a T4 byte plane at the PSP stride.
 
-    Row stride is ``byte_width(T4, w) = max(w//2, 16)`` bytes; each row holds
-    w//2 real index bytes (low nibble = even pixel, high nibble = odd) followed
-    by zero padding up to the stride.  Mirrors rwtex's strided T4 layout so the
-    plane can be swizzled with the shared helper and de-swizzled identically.
-    """
+ Row stride is ``byte_width(T4, w) = max(w//2, 16)`` bytes; each row holds
+ w//2 real index bytes (low nibble = even pixel, high nibble = odd) followed
+ by zero padding up to the stride. Mirrors rwtex's strided T4 layout so the
+ plane can be swizzled with the shared helper and de-swizzled identically.
+ """
     wb = rwtex.byte_width(rwtex.FMT_T4, w)
     plane = bytearray(wb * h)
     for y in range(h):
@@ -209,20 +209,20 @@ def _pack_t8(indices, w, h):
 
 def author_psp_texture(rgba, w, h, *, fmt="T8", mipmaps=False, max_levels=5):
     """Convert a decoded RGBA8888 image into a PSP-GE swizzled paletted texture,
-    optionally with a mip chain (kills moiré/aliasing on tiled textures).
+ optionally with a mip chain (kills moiré/aliasing on tiled textures).
 
-    Args:
-        rgba: RGBA8888 bytes, row-major, alpha last, length w*h*4.
-        w, h: pixel dimensions (power-of-two; >= 16x8).
-        fmt:  "T8" (256-colour) or "T4" (16-colour).
-        mipmaps: generate a mip chain (each level remapped to the base palette).
-        max_levels: cap on total levels (incl. level 0).
+ Args:
+ rgba: RGBA8888 bytes, row-major, alpha last, length w*h*4.
+ w, h: pixel dimensions (power-of-two; >= 16x8).
+ fmt: "T8" (256-colour) or "T4" (16-colour).
+ mipmaps: generate a mip chain (each level remapped to the base palette).
+ max_levels: cap on total levels (incl. level 0).
 
-    Returns: dict with gu_pixfmt, gu_clutfmt, width, height, swizzle,
-    clut_entries, num_levels, texel_bytes (ALL levels concatenated, level 0
-    first), clut_bytes.  Per-level offsets/dims are derivable: level k is
-    (w>>k, h>>k), byte_width(fmt, w>>k) * (h>>k) bytes.
-    """
+ Returns: dict with gu_pixfmt, gu_clutfmt, width, height, swizzle,
+ clut_entries, num_levels, texel_bytes (ALL levels concatenated, level 0
+ first), clut_bytes. Per-level offsets/dims are derivable: level k is
+ (w>>k, h>>k), byte_width(fmt, w>>k) * (h>>k) bytes.
+ """
     if fmt not in _FMT_COLORS:
         raise ValueError("fmt must be 'T8' or 'T4', got %r" % (fmt,))
     if len(rgba) != w * h * 4:
@@ -258,9 +258,9 @@ def author_psp_texture(rgba, w, h, *, fmt="T8", mipmaps=False, max_levels=5):
     texel_bytes = b"".join(levels)
 
     # alpha mode (drives the engine's per-texture blend/alpha-test):
-    #   0 = opaque (no alpha at all)
-    #   1 = cutout (hard 0/1 alpha: foliage/fence -> alpha-test, NO blend)
-    #   2 = translucent (partial alpha: glass/water -> blend)
+    # 0 = opaque (no alpha at all)
+    # 1 = cutout (hard 0/1 alpha: foliage/fence -> alpha-test, NO blend)
+    # 2 = translucent (partial alpha: glass/water -> blend)
     ah = Image.frombytes("RGBA", (w, h), bytes(rgba)).getchannel("A").histogram()
     n = w * h
     transparent = sum(ah[0:32])      # fully-transparent (cutout background)
@@ -291,10 +291,10 @@ def author_psp_texture(rgba, w, h, *, fmt="T8", mipmaps=False, max_levels=5):
 def decode_psp_texture(tex):
     """Engine-side reference decode of an :func:`author_psp_texture` dict.
 
-    De-swizzles the texel plane, reads indices at the stored row stride, and
-    applies the linear CLUT.  Returns RGBA8888 bytes (row-major, alpha last),
-    length width*height*4 - the exact inverse path used by the round-trip test.
-    """
+ De-swizzles the texel plane, reads indices at the stored row stride, and
+ applies the linear CLUT. Returns RGBA8888 bytes (row-major, alpha last),
+ length width*height*4 - the exact inverse path used by the round-trip test.
+ """
     w = tex["width"]
     h = tex["height"]
     fmt = "T4" if tex["gu_pixfmt"] == GU_PSM_T4 else "T8"

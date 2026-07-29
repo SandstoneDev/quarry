@@ -18,13 +18,13 @@ RGBA through the CLUT) re-indexed to the SAME palette by nearest colour, so the
 CLUT is untouched and every level shares it (one texture record, one palette).
 
 v2 in -> v2 out. Pipeline per tile:
-  pmap_lz4_decompress.py  (v3 -> v2)
-  pmap_tex_mipgen.py      (v2 -> v2', THIS)
-  pmap_lz4.py             (v2' -> v3')
+ pmap_lz4_decompress.py (v3 -> v2)
+ pmap_tex_mipgen.py (v2 -> v2', THIS)
+ pmap_lz4.py (v2' -> v3')
 
 Usage:
-  python pmap_tex_mipgen.py <in_v2.pmap> <out_v2.pmap>
-  python pmap_tex_mipgen.py --selftest         # swizzle round-trip + level rule
+ python pmap_tex_mipgen.py <in_v2.pmap> <out_v2.pmap>
+ python pmap_tex_mipgen.py --selftest # swizzle round-trip + level rule
 """
 import struct
 import sys
@@ -75,7 +75,7 @@ def mip_sizes(w, h):
 
 def build_chain(swz0, w, h, pal_rgba):
     """Return the concatenated swizzled levels (level0 unchanged + generated mips),
-    or None if this texture yields no mip level. pal_rgba is (256,4) uint8."""
+ or None if this texture yields no mip level. pal_rgba is (256,4) uint8."""
     sizes = mip_sizes(w, h)
     if len(sizes) == 1:
         return None

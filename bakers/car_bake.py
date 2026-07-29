@@ -5,62 +5,62 @@ v3 (CAR3). Geometry codec = the in-repo PS2 decoder (tools/ps2dff.py): on a PS2 
 the vehicle DFF is PS2-NATIVE VIF geometry (F_NATIVE) that the PC SAW formats.dff parser
 chokes on, so ps2dff decodes the clump (frames + atomics + per-material triangles) and a
 thin shim re-shapes it into the object the bake code already consumes. Paint + IMG stay on:
-  - ps2dff.py          : PS2-native clump parse (frames, _ok/_dam atomics, binmesh)
-  - formats/carcols.py : the REAL paint pipeline - marker material colours
-                         (60,255,0)=primary (255,0,175)=secondary (0,255,255)=tertiary
-                         (255,0,255)=quaternary (confirmed from the original build
-                         SetEditableMaterials in the original) -> carcols palette colour.
-  - core/imgarchive.py : gta3.img
+ - ps2dff.py : PS2-native clump parse (frames, _ok/_dam atomics, binmesh)
+ - formats/carcols.py : the REAL paint pipeline - marker material colours
+ (60,255,0)=primary (255,0,175)=secondary (0,255,255)=tertiary
+ (255,0,255)=quaternary (confirmed from the original build
+ SetEditableMaterials in the original) -> carcols palette colour.
+ - core/imgarchive.py : gta3.img
 
 What CAR2 got wrong / lacked, fixed here:
-  - paint was keyed on TEXTURE NAME (vehiclegeneric256/empty) -> chrome painted body
-    colour, marker mats with other textures missed. Now: material colour marker match.
-  - non-marker material colours were dropped (black underbody rendered white). Now:
-    vertex colour = material colour always.
-  - only the *_ok panels were baked; damage was a fake hinge tilt. Now: each panel
-    bakes its *_ok AND *_dam mesh (real SA dents + vehiclescratch/shatter textures);
-    the runtime swaps on damage status.
-  - no LOD. Now: chassis_vlo baked as a separate group (far draw).
-  - every prim embedded its own texture copy (vehiclegeneric256 duplicated ~20x in
-    file AND RAM). Now: deduped texture table, prims reference by index.
+ - paint was keyed on TEXTURE NAME (vehiclegeneric256/empty) -> chrome painted body
+ colour, marker mats with other textures missed. Now: material colour marker match.
+ - non-marker material colours were dropped (black underbody rendered white). Now:
+ vertex colour = material colour always.
+ - only the *_ok panels were baked; damage was a fake hinge tilt. Now: each panel
+ bakes its *_ok AND *_dam mesh (real SA dents + vehiclescratch/shatter textures);
+ the runtime swaps on damage status.
+ - no LOD. Now: chassis_vlo baked as a separate group (far draw).
+ - every prim embedded its own texture copy (vehiclegeneric256 duplicated ~20x in
+ file AND RAM). Now: deduped texture table, prims reference by index.
 
 car.bin layout (LE), all after a 'CAR3' magic:
-  f32 handling[24]                       (raw handling.cfg numeric fields)
-  u8  colPrim[3], colSec[3], pad[2]      (resolved carcols combo 0)
-  f32 seat[3]                            (ped_frontseat, car space)
-  f32 wheelScale, wheelRadius
-  f32 wheelMount[4][3]                   (lf, rf, lb, rb - car space)
-  u32 nTex
-  nTex texture blocks:
-    u16 tw,th,numLevels(|alphaMode<<8),clutEntries; u32 texlen,clutlen
-    <texels><clut>
-  u32 nComp
-  nComp component headers:
-    char name[16]; u8 kind,axis,hasDam,pad; f32 pivot[3]
-    f32 okScale, okCenter[3]; u32 okN     (prim run, OK mesh)
-    f32 dmScale, dmCenter[3]; u32 dmN     (prim run, DAM mesh; 0 = none)
-  vlo   header: f32 scale, center[3]; u32 n
-  wheel header: f32 scale, center[3]; u32 n
-  prim blocks in order: comp0 ok run, comp0 dam run, comp1 ..., vlo run, wheel run
-  prim block:
-    i16 texIdx (-1 untextured); u8 amode (0 opaque / 1 alphatest / 2 blend); u8 pad
-    u32 vbytes, ibytes; <verts><idx>      (vertex = tex s16x2, color 5551, pos s16x3)
+ f32 handling[24] (raw handling.cfg numeric fields)
+ u8 colPrim[3], colSec[3], pad[2] (resolved carcols combo 0)
+ f32 seat[3] (ped_frontseat, car space)
+ f32 wheelScale, wheelRadius
+ f32 wheelMount[4][3] (lf, rf, lb, rb - car space)
+ u32 nTex
+ nTex texture blocks:
+ u16 tw,th,numLevels(|alphaMode<<8),clutEntries; u32 texlen,clutlen
+ <texels><clut>
+ u32 nComp
+ nComp component headers:
+ char name[16]; u8 kind,axis,hasDam,pad; f32 pivot[3]
+ f32 okScale, okCenter[3]; u32 okN (prim run, OK mesh)
+ f32 dmScale, dmCenter[3]; u32 dmN (prim run, DAM mesh; 0 = none)
+ vlo header: f32 scale, center[3]; u32 n
+ wheel header: f32 scale, center[3]; u32 n
+ prim blocks in order: comp0 ok run, comp0 dam run, comp1 ..., vlo run, wheel run
+ prim block:
+ i16 texIdx (-1 untextured); u8 amode (0 opaque / 1 alphatest / 2 blend); u8 pad
+ u32 vbytes, ibytes; <verts><idx> (vertex = tex s16x2, color 5551, pos s16x3)
 
 PLN1 (--plane, build 434): the CAR4 layout with two insertions (everything else
 byte-identical, see the writer below + Vehicle.c load_carlike - they are the truth):
-  'PLN1'
-  f32 handling[24]
-  f32 fly[21]                            (handling.cfg $-line, research plane_port.md par.4:
-                                          Thrust FallOff Yaw YawStab SideSlip Roll RollStab
-                                          Pitch PitchStab FormLift AttackLift GearUpR
-                                          GearDownL WindMult MoveRes TurnRes[3] SpeedRes[3])
-  u8  colPrim[3], colSec[3], pad[2]
-  f32 seat[3]; f32 wheelScale, wheelRadius
-  f32 wheelMount[4][3]                   (raw DFF dummies; coincident tandem pairs kept --
-                                          the runtime spreads them like the bike +-0.3)
-  u8  nProp, pad[3]
-  f32 propAnchor[2][4]                   (xyz = shaft pivot, w = spin axis code: 1.0 = Y)
-  ... then COL box+spheres / tex table / comps / vlo / wheel / prim blocks as CAR4.
+ 'PLN1'
+ f32 handling[24]
+ f32 fly[21] (handling.cfg $-line, research plane_port.md par.4:
+ Thrust FallOff Yaw YawStab SideSlip Roll RollStab
+ Pitch PitchStab FormLift AttackLift GearUpR
+ GearDownL WindMult MoveRes TurnRes[3] SpeedRes[3])
+ u8 colPrim[3], colSec[3], pad[2]
+ f32 seat[3]; f32 wheelScale, wheelRadius
+ f32 wheelMount[4][3] (raw DFF dummies; coincident tandem pairs kept --
+ the runtime spreads them like the bike +-0.3)
+ u8 nProp, pad[3]
+ f32 propAnchor[2][4] (xyz = shaft pivot, w = spin axis code: 1.0 = Y)
+ ... then COL box+spheres / tex table / comps / vlo / wheel / prim blocks as CAR4.
 Plane component kinds (Vehicle.c render): 5 = prop (spins about Y through its pivot),
 6 = control surface (rudder Z, elevator/aileron X; angle=0 until Block B),
 7 = gear strut (X; angle=0 until Block B). static_prop* is NOT baked (v1: the prop
@@ -105,8 +105,8 @@ DEPLOY  = ""
 
 # --------------------------------------------- PS2 DFF -> SAW-shape adapter ---
 # The bake logic (frame_world / geometry_meshes / bake*) was written against the SAW
-# formats.dff object: dff.frames, dff.atomics and dff.geometries[i] with .splits /
-# .materials / .vertices / .uvs / .num_vertices. ps2dff.load_dff decodes the PS2-native
+# formats.dff object: dff.frames, dff.atomics and dff.geometries[i] with.splits /
+#.materials /.vertices /.uvs /.num_vertices. ps2dff.load_dff decodes the PS2-native
 # clump (already welded + triangulated, frames named, _ok/_dam atomics intact); these
 # thin shims re-shape it into that object so the bake code runs UNCHANGED. Vehicles are
 # painted from MATERIAL colours (carcols markers), so the PS2 day/night vertex prelight
@@ -132,7 +132,7 @@ class _DffShim:
 
 def load_ps2_dff(blob):
     """PS2-native vehicle DFF bytes -> a SAW-formats.dff-shaped object (frames / atomics /
-    geometries) the bake code consumes. One atomic is synthesized per framed geometry."""
+ geometries) the bake code consumes. One atomic is synthesized per framed geometry."""
     # Vehicles are authored for a different VU1 pipeline than the world, and its
     # 16-bit positions carry 10 fractional bits rather than 7. Decoding them with
     # from handling, so the tyres looked correct on an oversized body.
@@ -201,10 +201,10 @@ def xform(m, x, y, z):
 # --------------------------------------------------- geometry -> SaMeshes ----
 def geometry_meshes(geo, world, paint_rgbs):
     """SAW Geometry -> list of (SaMesh, Material). Verts transformed by `world`
-    (or left local if None). Vertex colour = the SA paint rule:
-       marker colour  -> carcols palette colour for that slot
-       anything else  -> the material colour itself (chrome white, underbody black...)
-    """
+ (or left local if None). Vertex colour = the SA paint rule:
+ marker colour -> carcols palette colour for that slot
+ anything else -> the material colour itself (chrome white, underbody black...)
+ """
     out = []
     uvs = geo.uvs[0] if geo.uvs else [(0.0, 0.0)] * geo.num_vertices
     for sp in geo.splits:
@@ -335,10 +335,10 @@ def _amode_of(mat, textable):
 
 def merge_meshes_by_texture(saw_meshes, textable, vcap=60000):
     """Concatenate meshes that share (texture, alpha-mode) into ONE SaMesh each, so a rigid
-    body draws ~1 prim (draw call) per unique texture instead of 1 per source component.
-    Per-vertex colours survive, so distinct paint slots are kept.  A group splits once it
-    would exceed vcap verts (u16 index safety).  Opaque groups are ordered before glass so
-    the translucent prims draw last."""
+ body draws ~1 prim (draw call) per unique texture instead of 1 per source component.
+ Per-vertex colours survive, so distinct paint slots are kept. A group splits once it
+ would exceed vcap verts (u16 index safety). Opaque groups are ordered before glass so
+ the translucent prims draw last."""
     groups = {}          # (texname, amode, corner) -> list of open (SaMesh, Material) buckets
     order = []
     for me, mat in saw_meshes:
@@ -369,7 +369,7 @@ def merge_meshes_by_texture(saw_meshes, textable, vcap=60000):
 
 def pack_run_merged(meshes, textable):
     """pack_run after collapsing same-(texture,alpha) material-splits into one mesh -> ~1
-    draw per unique texture in the component (a detailed door was ~8 material-split prims)."""
+ draw per unique texture in the component (a detailed door was ~8 material-split prims)."""
     return pack_run(merge_meshes_by_texture(meshes, textable), textable)
 
 
@@ -379,9 +379,9 @@ def pack_run_merged(meshes, textable):
 # a HEADERLESS COL1 body - the in-memory CColModel serialized straight from the TBounds,
 # with NO "COL3"/name/modelId wrapper (verified byte-exact: the body consumes the chunk
 # with zero slack across the roster). We only need the spheres + bound box:
-#   TBounds(40): f32 radius, center[3], min[3], max[3]        (sphere-first, COL1 order)
-#   u32 nSph;  nSph * { f32 radius, center[3]; u8 surface, PIECE, brightness, light } (0x14)
-#   u32 nLine / nBox / nVert / nFace ... follow (unused here).
+# TBounds(40): f32 radius, center[3], min[3], max[3] (sphere-first, COL1 order)
+# u32 nSph; nSph * { f32 radius, center[3]; u8 surface, PIECE, brightness, light } (0x14)
+# u32 nLine / nBox / nVert / nFace... follow (unused here).
 # Each sphere carries the eVehicleCollisionComponent PIECE id (1 bonnet 2 boot 3 bump_f
 # 4 bump_r 5-8 doors 9-12 wings 17/19 windscreen; 0/255 = plain body) -> car.bin damage map.
 _C_EXT, _C_CLUMP, _C_COLL = 0x03, 0x10, 0x0253F2FA
@@ -405,9 +405,9 @@ class _VehCol:
 
 def extract_vehicle_col(dff_bytes):
     """Decode the PS2 headerless-COL1 collision from the vehicle clump's extension.
-    Returns a _VehCol (spheres=[{center,radius,piece}], bound_min, bound_max), or None
-    when there is no collision chunk / the layout is not the expected one (caller then
-    keeps its default bound box + empty sphere set)."""
+ Returns a _VehCol (spheres=[{center,radius,piece}], bound_min, bound_max), or None
+ when there is no collision chunk / the layout is not the expected one (caller then
+ keeps its default bound box + empty sphere set)."""
     b = bytes(dff_bytes)
     cl_off, cl_size = _rw_find(b, 0, len(b), _C_CLUMP)
     if cl_off is None:
@@ -445,11 +445,11 @@ def extract_vehicle_col(dff_bytes):
 # ------------------------------------------------------------- handling ------
 # handling[24] baked layout (parsed by CFG column, letters -> codes) - the runtime
 # rigid-body physics reads these by index (see Vehicle.c HND_*):
-#   0 mass  1 turnMass  2 dragMult  3 cmX  4 cmY  5 cmZ  6 tractionMult
-#   7 tractionLoss  8 tractionBias  9 numGears  10 maxVel(km/h)  11 engineAccel
-#   12 engineInertia  13 driveType(0=F,1=R,2=4wd)  14 brakeDecel  15 brakeBias
-#   16 steeringLock(deg)  17 suspForce  18 suspDamp  19 suspUpper  20 suspLower
-#   21 suspBias  22 antiDive  23 handlingFlags(hex as float bits low 24)
+# 0 mass 1 turnMass 2 dragMult 3 cmX 4 cmY 5 cmZ 6 tractionMult
+# 7 tractionLoss 8 tractionBias 9 numGears 10 maxVel(km/h) 11 engineAccel
+# 12 engineInertia 13 driveType(0=F,1=R,2=4wd) 14 brakeDecel 15 brakeBias
+# 16 steeringLock(deg) 17 suspForce 18 suspDamp 19 suspUpper 20 suspLower
+# 21 suspBias 22 antiDive 23 handlingFlags(hex as float bits low 24)
 def load_handling(name):
     for line in open(ROOT_PC + "/data/handling.cfg", "r", errors="replace"):
         s = line.strip()
@@ -459,11 +459,11 @@ def load_handling(name):
         if not t or t[0].upper() != name.upper():
             continue
         # CFG columns after the name (see research vehicle_physics.md §1/§8):
-        #  1 mass 2 turnMass 3 drag 4 cmX 5 cmY 6 cmZ 7 subm 8 tracMul 9 tracLoss
-        #  10 tracBias 11 nGears 12 maxV 13 engAcc 14 engInert 15 drive 16 engType
-        #  17 brakeDec 18 brakeBias 19 ABS 20 steerLock 21 suspForce 22 suspDamp
-        #  23 hiSpd 24 suspUp 25 suspLo 26 suspBias 27 antiDive 28 seatOff 29 dmgMul
-        #  30 money 31 modelFlags 32 handlingFlags ...
+        # 1 mass 2 turnMass 3 drag 4 cmX 5 cmY 6 cmZ 7 subm 8 tracMul 9 tracLoss
+        # 10 tracBias 11 nGears 12 maxV 13 engAcc 14 engInert 15 drive 16 engType
+        # 17 brakeDec 18 brakeBias 19 ABS 20 steerLock 21 suspForce 22 suspDamp
+        # 23 hiSpd 24 suspUp 25 suspLo 26 suspBias 27 antiDive 28 seatOff 29 dmgMul
+        # 30 money 31 modelFlags 32 handlingFlags...
         def f(i, d=0.0):
             try: return float(t[i])
             except (IndexError, ValueError): return d
@@ -486,9 +486,9 @@ FLY_RUSTLER = [0.5, 0.30, -0.0001, 0.004, 0.10, 0.002, -0.002, 0.0002, 0.0020,
 
 def load_flying_handling(name):
     """tFlyingHandlingData: the '$' lines of handling.cfg (research plane_port.md par.4).
-    Token order after the name: fThrust fThrustFallOff fYaw fYawStab fSideSlip fRoll
-    fRollStab fPitch fPitchStab fFormLift fAttackLift fGearUpR fGearDownL fWindMult
-    fMoveRes vecTurnRes[3] vecSpeedRes[3] = 21 floats."""
+ Token order after the name: fThrust fThrustFallOff fYaw fYawStab fSideSlip fRoll
+ fRollStab fPitch fPitchStab fFormLift fAttackLift fGearUpR fGearDownL fWindMult
+ fMoveRes vecTurnRes[3] vecSpeedRes[3] = 21 floats."""
     for line in open(ROOT_PC + "/data/handling.cfg", "r", errors="replace"):
         s = line.strip()
         if not s.startswith("$"):
@@ -510,7 +510,7 @@ def load_flying_handling(name):
 
 # --------------------------------------------------------------- bake ---------
 # damageable panels: (base frame name, out name, kind, hingeAxis)
-#   kind: 0 static, 1 door, 2 bonnet, 3 boot, 4 bumper.  hingeAxis: 0 X, 1 Y, 2 Z.
+# kind: 0 static, 1 door, 2 bonnet, 3 boot, 4 bumper. hingeAxis: 0 X, 1 Y, 2 Z.
 # each bakes <base>_ok as the OK run and <base>_dam (if present) as the DAM run.
 PANELS = [
     ("door_lf",    "door_lf", 1, 2),
@@ -595,7 +595,7 @@ def bake(dff_name="bravura", txd_name="bravura", handling="BRAVURA",
     # ---- STATIC BODY: chassis + plate + EVERY leftover atomic (turret/gun/rig parts the
     # whitelist doesn't know), MERGED by texture into ONE rigid component (kind 0, no hinge).
     # Was one draw PER component -> a detailed car was ~15-20 draws; merging collapses the
-    # static part to ~1 prim (draw) per unique texture.  The movable panels above
+    # static part to ~1 prim (draw) per unique texture. The movable panels above
     # (doors/bonnet/boot/bumpers) + the wheels stay separate so they still hinge/spin. ----
     static_meshes = []
     for base, _out in STATICS:
@@ -713,17 +713,17 @@ def bake(dff_name="bravura", txd_name="bravura", handling="BRAVURA",
 # bicycle physics and LEANS it into turns. Steer/wheel articulation is a later pass.
 #
 # bike.bin layout (LE), after a 'BIKE' magic:
-#   f32 handling[24]
-#   u8  colPrim[3], colSec[3], pad[2]
-#   f32 riderSeat[3]                       (ped_frontseat, bike space)
-#   f32 steerPivot[3]                      (forks_front origin)
-#   f32 wheelFront[3], wheelRear[3]        (wheel centres, bike space)
-#   f32 wheelRadius
-#   u32 nTex ; nTex texture blocks         (same block format as car.bin)
-#   body  header: f32 scale, center[3]; u32 nPrims
-#   vlo   header: f32 scale, center[3]; u32 nPrims
-#   COL: f32 boundMin[3], boundMax[3]; u32 nSph; nSph {f32 c[3],r; u8 piece,pad[3]}
-#   prim blocks: body run, then vlo run   (same prim block format as car.bin)
+# f32 handling[24]
+# u8 colPrim[3], colSec[3], pad[2]
+# f32 riderSeat[3] (ped_frontseat, bike space)
+# f32 steerPivot[3] (forks_front origin)
+# f32 wheelFront[3], wheelRear[3] (wheel centres, bike space)
+# f32 wheelRadius
+# u32 nTex; nTex texture blocks (same block format as car.bin)
+# body header: f32 scale, center[3]; u32 nPrims
+# vlo header: f32 scale, center[3]; u32 nPrims
+# COL: f32 boundMin[3], boundMax[3]; u32 nSph; nSph {f32 c[3],r; u8 piece,pad[3]}
+# prim blocks: body run, then vlo run (same prim block format as car.bin)
 def bake_bike(dff_name="pcj600", txd_name="pcj600", handling="BIKE",
               carcols_name="pcj600", wheel_scale=0.67, out_paths=None):
     img = ImgArchive.open(GTA3_IMG)
@@ -832,19 +832,19 @@ def bake_bike(dff_name="pcj600", txd_name="pcj600", handling="BIKE",
 
 # ============================ PLANE bake (PLN1, build 434) ===================
 # Frame naming across the 11 baked planes (verified against the real DFFs):
-#   doors      : door_lf_ok (+door_rf_ok on dodo/at400/androm/skimmer/beagle)
-#   surfaces   : rudder; elevator_l+r (or elevator_r ONLY: rustler/cropdust/beagle/
-#                skimmer; or a single 'elevator': dodo); aileron_l+r
-#   gear doors : gear_l / gear_r (rustler/shamal/nevada/hydra/at400/androm)
-#   props      : moving_prop (+moving_prop2: beagle/nevada; skimmer has ONLY
-#                moving_prop2); static_prop* = the sharp-blade twin -> NOT baked
-#   wheel mesh : wheel | wheel1 (beagle) | wheel_l/_r (stunt; _l baked, _r merged
-#                away would mirror - we just use _l for all mounts) | none (skimmer)
-#   LOD        : chassis_vlo | chassis_vlo2 (stunt)
-#   leftovers  : misc_a/b (Hydra nozzles etc.), wheel_lm/rm_dummy atomics (hydra
-#                mid gear) -> merged into the static body like the car bake.
+# doors: door_lf_ok (+door_rf_ok on dodo/at400/androm/skimmer/beagle)
+# surfaces: rudder; elevator_l+r (or elevator_r ONLY: rustler/cropdust/beagle/
+# skimmer; or a single 'elevator': dodo); aileron_l+r
+# gear doors: gear_l / gear_r (rustler/shamal/nevada/hydra/at400/androm)
+# props: moving_prop (+moving_prop2: beagle/nevada; skimmer has ONLY
+# moving_prop2); static_prop* = the sharp-blade twin -> NOT baked
+# wheel mesh: wheel | wheel1 (beagle) | wheel_l/_r (stunt; _l baked, _r merged
+# away would mirror - we just use _l for all mounts) | none (skimmer)
+# LOD: chassis_vlo | chassis_vlo2 (stunt)
+# leftovers: misc_a/b (Hydra nozzles etc.), wheel_lm/rm_dummy atomics (hydra
+# mid gear) -> merged into the static body like the car bake.
 PLANE_PANELS = [
-    # (frame, out name, kind, axis)  kind 5 prop / 6 surface / 7 gear / 8 nozzle;
+    # (frame, out name, kind, axis) kind 5 prop / 6 surface / 7 gear / 8 nozzle;
     # axis 0 X, 1 Y, 2 Z
     ("rudder",       "rudder", 6, 2),
     ("elevator_l",   "elev_l", 6, 0),
@@ -881,9 +881,9 @@ def _uv_extent(meshes):
 
 def select_col_spheres(spheres, cap=24):
     """Greedy farthest-point SELECTION (build_wq_spheres style, Vehicle.c:899) down to
-    `cap` REAL spheres + FORCED X/Y extremes (wingtips + nose/tail): a subset of the
-    true hull never collides where the plane doesn't, and the extremes keep the wing
-    span + the tail lever honest for Block B."""
+ `cap` REAL spheres + FORCED X/Y extremes (wingtips + nose/tail): a subset of the
+ true hull never collides where the plane doesn't, and the extremes keep the wing
+ span + the tail lever honest for Block B."""
     n = len(spheres)
     if n <= cap:
         return list(spheres)
@@ -1131,11 +1131,11 @@ PLANE_FAMILY = ("plane",)
 
 def parse_vehicles_ide():
     """id -> {id,model,txd,handling,carcols,wheel,vtype} for drivable vehicles.
-    Tokenised by commas AND whitespace ([,\\s]+): the stock dodo line is broken
-    (TAB instead of the model,txd comma) and shifted every field one left under
-    the plain comma split - dodo used to vanish into a phantom 'dodo' type.
-    Planes: full 15-field rows, except skimmer = 11 fields (no wheel columns,
-    no wheels on floats) -> wheelScale defaults 0.7."""
+ Tokenised by commas AND whitespace ([,\\s]+): the stock dodo line is broken
+ (TAB instead of the model,txd comma) and shifted every field one left under
+ the plain comma split - dodo used to vanish into a phantom 'dodo' type.
+ Planes: full 15-field rows, except skimmer = 11 fields (no wheel columns,
+ no wheels on floats) -> wheelScale defaults 0.7."""
     path = ROOT_PC + "/data/vehicles.ide"
     out = {}
     for line in open(path, "r", errors="replace"):
@@ -1210,9 +1210,9 @@ PLANE_IDS = [476, 593, 513, 512, 511, 519, 553, 520, 577, 592, 460]
 
 def bake_planes():
     """Bake all Block-A planes to assets_build ONLY (no memstick deploy - hand
-    placement), then rebuild veh_index.bin (LOCAL only) from every veh_<name>.bin
-    actually present on disk: existing car/bike roster + the fresh planes, and a
-    failed bake can never shrink the index (the old single-entry-index accident)."""
+ placement), then rebuild veh_index.bin (LOCAL only) from every veh_<name>.bin
+ actually present on disk: existing car/bike roster + the fresh planes, and a
+ failed bake can never shrink the index (the old single-entry-index accident)."""
     ide = parse_vehicles_ide()
     reports = []
     for mid in PLANE_IDS:

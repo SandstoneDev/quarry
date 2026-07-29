@@ -6,21 +6,21 @@ research/object_damage_system.md §1.2, BINARY behaviour incl. the default-row
 slot mapping and the -500 FX sentinel), resolves model names to IDE ids, pulls
 a collision capsule (r, h) per model from its ColModel bbox, and writes:
 
-  data/dynobj.bin      the runtime table (entries + modelId->entry map)
-  tools/dyn_names.txt  one model name per line - col_bake excludes these from
-                       the STATIC region collision (a felled lamp post must not
-                       leave an invisible wall behind).
+ data/dynobj.bin the runtime table (entries + modelId->entry map)
+ tools/dyn_names.txt one model name per line - col_bake excludes these from
+ the STATIC region collision (a felled lamp post must not
+ leave an invisible wall behind).
 
 dynobj.bin (little-endian):
-  'DYN3' u16 nEntries u16 nMap
-  entry (172B): f32 mass, turnMass, elasticity, uprootLimit, cdMult, smashMult,
-                breakVel[3], breakVelRand, colR, colH;
-                u8 nPrim, pad[3];
-                prim[4] (28B each): f32 cx,cy,cz, hx,hy,hz, r
-                  r >  0: SPHERE centre (cx,cy,cz) radius r  (hx/hy/hz = 0)
-                  r == 0: BOX centre + half-extents          (model space)
-                u8 cdEff, spCase, gunBreak, flags       (flags: 1 sparks, 2 explodes)
-  map (4B):     u16 modelId, u16 entryIdx     sorted by modelId (runtime bsearch)
+ 'DYN3' u16 nEntries u16 nMap
+ entry (172B): f32 mass, turnMass, elasticity, uprootLimit, cdMult, smashMult,
+ breakVel[3], breakVelRand, colR, colH;
+ u8 nPrim, pad[3];
+ prim[4] (28B each): f32 cx,cy,cz, hx,hy,hz, r
+ r > 0: SPHERE centre (cx,cy,cz) radius r (hx/hy/hz = 0)
+ r == 0: BOX centre + half-extents (model space)
+ u8 cdEff, spCase, gunBreak, flags (flags: 1 sparks, 2 explodes)
+ map (4B): u16 modelId, u16 entryIdx sorted by modelId (runtime bsearch)
 
 The primitives are the REAL COL spheres+boxes (largest first, up to 4): a lamp
 post is its narrow trunk box near the ground plus arm spheres 5u up - a 3D test
@@ -36,7 +36,7 @@ import sa_col
 
 SA = os.environ.get("SA_ROOT", "")   # extract root (data/object.dat); the chain sets SA_ROOT
 # Output comes from argv so the converter can aim it at the user's data folder:
-#   dynobj_bake.py <out dynobj.bin> [out dyn_names.txt]
+# dynobj_bake.py <out dynobj.bin> [out dyn_names.txt]
 OUT_BIN = sys.argv[1] if len(sys.argv) > 1 else "dynobj.bin"
 OUT_NAMES = (sys.argv[2] if len(sys.argv) > 2
              else os.path.join(os.path.dirname(os.path.abspath(__file__)), "dyn_names.txt"))
@@ -44,7 +44,7 @@ OUT_NAMES = (sys.argv[2] if len(sys.argv) > 2
 
 def parse_object_dat():
     """name -> 20-field tuple (mass..gunBreak), following the header column order.
-    Returns (rows, defaults_used) with rows keyed by LOWER name."""
+ Returns (rows, defaults_used) with rows keyed by LOWER name."""
     rows = {}
     path = os.path.join(SA, "data", "object.dat")
     for line in open(path, "r", errors="replace"):
@@ -120,11 +120,11 @@ def load_ide_id2name():
 
 def gen_prims_from_mesh(cm):
     """No COL spheres/boxes -> derive up to 4 SPHERES from the collision MESH:
-    slice the verts into z-layers, one sphere per layer at the layer's centroid
-    (robust r = p90 of centroid distances, floored at half the layer height). A
+ slice the verts into z-layers, one sphere per layer at the layer's centroid
+ (robust r = p90 of centroid distances, floored at half the layer height). A
 
-    that ground traffic can't reach - the shape-following spheres  asked
-    for, placed where the object actually is."""
+ that ground traffic can't reach - the shape-following spheres asked
+ for, placed where the object actually is."""
     verts = getattr(cm, "verts", None)
     if not verts or len(verts) < 3:
         return []

@@ -3,26 +3,26 @@
 for the PSP port's Radio.c streaming player.
 
 Ground truth (all from the retail PC game + the reference notes):
-  * XOR key + position-keyed cipher  -> CAEStreamTransformer (key mod-16 by byte position)
-  * AUDIO/CONFIG/STRMPAKS.DAT (16-byte names)   -> packId -> archive filename
-  * AUDIO/CONFIG/TRAKLKUP.DAT (12-byte records)  -> trackId -> {packId, offset, size}
-  * each track on disk = [8068-byte tTrackInfo header][encrypted OGG payload of `size`]
-  * gRadioMusicTracks (RadioStreamsPC.h)         -> which track IDs are a station's music
-  * VehicleAudioSettings (the reference notes)          -> per-model default station
+ * XOR key + position-keyed cipher -> CAEStreamTransformer (key mod-16 by byte position)
+ * AUDIO/CONFIG/STRMPAKS.DAT (16-byte names) -> packId -> archive filename
+ * AUDIO/CONFIG/TRAKLKUP.DAT (12-byte records) -> trackId -> {packId, offset, size}
+ * each track on disk = [8068-byte tTrackInfo header][encrypted OGG payload of `size`]
+ * gRadioMusicTracks (RadioStreamsPC.h) -> which track IDs are a station's music
+ * VehicleAudioSettings (the reference notes) -> per-model default station
 
 v1 = MUSIC ONLY (no DJ intro/outro/advert/ident). Each station's music tracks are
 written as plain (decrypted) OGGs; the engine streams them with stb_vorbis file mode.
 
 Usage:
-  python tools/radio_bake.py --game "" \
-      --out assets_build/radio [--stations CR,MH,CO]
+ python tools/radio_bake.py --game "" \
+ --out assets_build/radio [--stations CR,MH,CO]
 """
 import argparse, os, struct, sys
 
 KEY = bytes.fromhex("ea3ac4a19aa814f348b0d7239de8fff1")
 HDR = 0x1F84  # sizeof(tTrackInfo) - skipped to reach the OGG payload
 
-# station index -> (eRadioID, ascii display name, music track IDs).  The stream-archive
+# station index -> (eRadioID, ascii display name, music track IDs). The stream-archive
 # CODE (CH/CO/...) is NOT hardcoded: it is resolved per-track from TRAKLKUP+STRMPAKS so
 # it is ground-truth, not a guess.
 STATIONS = [
@@ -123,8 +123,8 @@ def main():
         print("  %-3s %-20s %2d tracks  %6.1f MB  %5.0fs" %
               (code, name, len(tracks), total/1e6, sum(durs)/32000.0))
 
-    # manifest: 'RADI' v1  nStations  [ code[4] radioId u8 nTracks u16  durMs[u32]* ]
-    #           then model table: nModels u16, then u8 station per model from 400
+    # manifest: 'RADI' v1 nStations [ code[4] radioId u8 nTracks u16 durMs[u32]* ]
+    # then model table: nModels u16, then u8 station per model from 400
     veh = parse_vehicle_defaults(args.reversed)
     man = bytearray()
     man += b"RADI" + struct.pack("<II", 1, len(baked))

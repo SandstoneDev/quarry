@@ -7,7 +7,7 @@ The .pmap carries only a tile-local model index (no SA id), so this tool re-read
 each region_X_Y.pmap, matches instances BY POSITION against the SA IPL placements of
 barrier models, collects the tile-local MODEL indices those instances use, and writes
 
-  region_X_Y.barr:  'BARR' u16 modelCount u16 pad, then u16 localModelIdx[]
+ region_X_Y.barr: 'BARR' u16 modelCount u16 pad, then u16 localModelIdx[]
 
 The runtime ORs PMAP_MODELFLAG_BARRIER into that model's per-model flag byte
 (Streaming.build_model_flags), and the renderer skips those models' draws while the

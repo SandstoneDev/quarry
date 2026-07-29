@@ -3,7 +3,7 @@
 
 The --grid baker (sa_export_pmap.py) slices the *raw* scene; its region files
 are therefore NOT tessellated and hit the PSP guard-band hole bug on camera
-rotate.  This driver instead reads a finished (tessellated + tex-capped)
+rotate. This driver instead reads a finished (tessellated + tex-capped)
 whole-map .pmap back into scene objects and re-runs the same regional slicer, so
 every region tile inherits the tessellated geometry verbatim.
 

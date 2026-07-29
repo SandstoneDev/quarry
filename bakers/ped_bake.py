@@ -28,8 +28,8 @@ DEPLOY = [
 ]
 
 # clip slots are FIXED by index (runtime relies on them):
-#   0 idle, 1 walk, 2 run, 3 HIT_front, 4 HIT_back, 5 KO_skid_front (death),
-#   6 CHAT (IDLE_chat - SA standing "talk with hand gestures", 16 seqs/41 frames)
+# 0 idle, 1 walk, 2 run, 3 HIT_front, 4 HIT_back, 5 KO_skid_front (death),
+# 6 CHAT (IDLE_chat - SA standing "talk with hand gestures", 16 seqs/41 frames)
 MALE_CLIPS   = ["IDLE_stance", "WALK_civi", "run_civi",
                 "HIT_front", "HIT_back", "KO_skid_front", "IDLE_chat"]
 FEMALE_CLIPS = ["woman_idlestance", "WOMAN_walknorm", "woman_run",

@@ -37,11 +37,11 @@ def test_gvar_and_label():
     off += 3
     assert scm[off] == TAG_INT8 and scm[off + 1] == 1
     off += 2
-    # GOTO @top: op 0002 + tag1 int32 == absolute offset of :top (== base+SCRIPT_NAME size)
+    # GOTO @top: op 0002 + tag1 int32 == absolute offset of:top (== base+SCRIPT_NAME size)
     assert struct.unpack_from("<H", scm, off)[0] == 0x0002
     assert scm[off + 2] == TAG_INT32
     top_off = struct.unpack_from("<i", scm, off + 3)[0]
-    assert top_off == base + 11        # :top is right after SCRIPT_NAME (2+1+8=11 bytes)
+    assert top_off == base + 11        #:top is right after SCRIPT_NAME (2+1+8=11 bytes)
 
 def test_gvar_bounds():
     try:

@@ -7,16 +7,16 @@ research/interior_enex_system.md), pairs the two lines that share a name
 and writes the LS phase-1 set to data/enex.bin.
 
 enex IPL line (18 cols):
-  x, y, z, enterAngle, sizeX, sizeY, sizeZ,
-  exitX, exitY, exitZ, exitAngle, targetInterior, flags, name,
-  sky, numPedsToSpawn, timeOn, timeOff
+ x, y, z, enterAngle, sizeX, sizeY, sizeZ,
+ exitX, exitY, exitZ, exitAngle, targetInterior, flags, name,
+ sky, numPedsToSpawn, timeOn, timeOff
 
 enex.bin: 'ENEX' u16 count u16 pad, then per DOOR (one record per SIDE):
-  f32 entX,entY,entZ, entHeading(rad)      the walk-into rectangle centre
-  f32 sizeX, sizeY                          rectangle half-extents-ish (SA sizes)
-  f32 spawnX, spawnY, spawnZ, spawnHeading  where THIS side's transition lands you
-  u8  areaHere, areaTarget, sky, flags8     area codes: which world this side lives in
-  char name[20]                             interior name (== interior_<name>.pmap)
+ f32 entX,entY,entZ, entHeading(rad) the walk-into rectangle centre
+ f32 sizeX, sizeY rectangle half-extents-ish (SA sizes)
+ f32 spawnX, spawnY, spawnZ, spawnHeading where THIS side's transition lands you
+ u8 areaHere, areaTarget, sky, flags8 area codes: which world this side lives in
+ char name[20] interior name (== interior_<name>.pmap)
 """
 import glob
 import os

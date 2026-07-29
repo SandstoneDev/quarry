@@ -1,7 +1,7 @@
 # Opcode table shared by the assembler and its tests.
 # Mirrors src/game_sa/Scripts/ScriptCmd.h (keep in sync).
 # name -> (hex_opcode, arg_spec)
-# arg_spec chars: v=var(dest, tag 2/3)  i=int  f=float  s=string8  a=address(@label, int32)
+# arg_spec chars: v=var(dest, tag 2/3) i=int f=float s=string8 a=address(@label, int32)
 OPCODES = {
     "NOP":                (0x0000, ""),
     "WAIT":               (0x0001, "i"),

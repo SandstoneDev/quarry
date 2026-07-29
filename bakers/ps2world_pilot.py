@@ -8,7 +8,7 @@ gvcslib.sa_dff.decode - correct day colours (gvcslib's own decoder packs the
 night set as the only colour) and a DMA-walk that survives every layout.
 
 Usage:
-    ps2world_pilot.py <extractedIsoRoot> <outDir> [x0 y0 x1 y1]
+ ps2world_pilot.py <extractedIsoRoot> <outDir> [x0 y0 x1 y1]
 
 Default bbox = the Grove Street tile 12_2 of the engine's 14x14 450u grid
 (origin -2994,-2938): x 2406..2856, y -2038..-1588. The output chunkset
@@ -23,7 +23,7 @@ sys.path.insert(0, GVCS)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import ps2dff                                      # our decoder (day+night)
-import sa_spin                                     # IFP clip -> .spin descriptor
+import sa_spin                                     # IFP clip ->.spin descriptor
 from gvcslib import sa_dff
 from gvcslib.work import sa_export_pmap
 from ps2_uv_tess import cap_uv_span                # caps each triangle's UV extent
@@ -31,8 +31,8 @@ from ps2_uv_tess import cap_uv_span                # caps each triangle's UV ext
 
 def _decode_night(blob):
     """decode_sa with the NIGHT colour set in .colors - the whole exporter then
-    packs a night-lit twin of every region; ps2night_sidecar.py lifts the 5551
-    colours out of it into region_*.night files."""
+ packs a night-lit twin of every region; ps2night_sidecar.py lifts the 5551
+ colours out of it into region_*.night files."""
     m = ps2dff.decode_sa(blob)
     for mesh in m.meshes:
         mesh.colors = mesh.colors_night
@@ -96,12 +96,12 @@ def main():
     # monkey-patch carries our day+night colour stream; build_pmap's dff_decode
     # default binds the ORIGINAL decoder at import, so pass ours EXPLICITLY.
     # spin_resolver reads each IDE `anim` model's IFP clip out of gta3.img and
-    # reduces it to {axis, mode, rate, amplitude} -> the .spin sidecar (the
+    # reduces it to {axis, mode, rate, amplitude} -> the.spin sidecar (the
     # animation data itself never leaves the user's disc).
     sm, st, si = sa_export_pmap.build_pmap(
         root, bbox, cell_size=400.0, tex_fmt="T8", tex_max=128,
         verbose=True, return_scene=True,
-        dff_decode=(_decode_night if NIGHT else ps2dff.decode_sa),  # NIGHT: night colour stream (was always day -> .night==day, windows never lit)
+        dff_decode=(_decode_night if NIGHT else ps2dff.decode_sa),  # NIGHT: night colour stream (was always day ->.night==day, windows never lit)
         tex_fallback=tex_fallback,
         spin_resolver=sa_spin.make_resolver(_img))
     # Cap every triangle's UV extent BEFORE the grid slice. The GE reads 16-bit

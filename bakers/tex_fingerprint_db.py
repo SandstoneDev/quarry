@@ -9,7 +9,7 @@ match deployed textures by perceptual hash. The name then keys the PS2-native
 lookup (PS2 TXDs use the same txd/texture names).
 
 Builds: {ahash64+dhash64 hex: [(txd, name, w, h), ...]} -> tex_fp_db.json
-        + packed hashes tex_fp_db.npz for fast Hamming fallback.
+ + packed hashes tex_fp_db.npz for fast Hamming fallback.
 
 Usage: python tex_fingerprint_db.py <img> [<img2> ...] <out_prefix> [--limit N]
 """

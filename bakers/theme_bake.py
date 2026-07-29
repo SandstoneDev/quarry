@@ -5,12 +5,12 @@ The PSP plays ATRAC3 natively on the Media Engine (near-zero CPU), which is ligh
 than decoding OGG on the Allegrep with stb_vorbis. So we transcode the de-obfuscated
 stream track to AT3 offline:
 
-  track OGG  (stream_extract: TRAKLKUP/STRMPAKS + ADF de-XOR + skip 0x1F84)
-    -> WAV   (soundfile decode, linear-resample 32k -> 44100 = the PSP AT3 rate)
-    -> AT3   (psp_at3tool.exe -e -wholeloop - ATRAC3, whole-track loop for seamless repeat)
-    -> data/theme.at3  (+ the .ogg too, as a stb_vorbis fallback the runtime auto-selects)
+ track OGG (stream_extract: TRAKLKUP/STRMPAKS + ADF de-XOR + skip 0x1F84)
+ -> WAV (soundfile decode, linear-resample 32k -> 44100 = the PSP AT3 rate)
+ -> AT3 (psp_at3tool.exe -e -wholeloop - ATRAC3, whole-track loop for seamless repeat)
+ -> data/theme.at3 (+ the .ogg too, as a stb_vorbis fallback the runtime auto-selects)
 
-Run:  python theme_bake.py [trackId]      # default 184 (BEATS, ~77 s) - the theme candidate
+Run: python theme_bake.py [trackId] # default 184 (BEATS, ~77 s) - the theme candidate
 """
 import os
 import sys

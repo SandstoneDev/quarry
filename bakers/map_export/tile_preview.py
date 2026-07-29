@@ -2,7 +2,7 @@
 """tile_preview - offline render of a region_*.pmap (v2, PRE-lz4) to PNG.
 Top-down + oblique, GE-faithful sampling (uv = s16/4096, REPEAT, nearest,
 MODULATE by vertex colour). Usage:
-  python tools/map_export/tile_preview.py <region.pmap> <out.png>
+ python tools/map_export/tile_preview.py <region.pmap> <out.png>
 Writes <out>_top.png and <out>_ob.png.
 """
 import os
@@ -45,9 +45,9 @@ def decode_tex(t):
 
 def quat_mat(qx, qy, qz, qw):
     """Row-vector rotation matching the runtime build_inst_matrix convention
-    (SA IPL stores the conjugate; the baker wrote quats verbatim, the engine
-    builds the transposed RW basis - same math both sides, verified visually
-    against PPSSPP renders)."""
+ (SA IPL stores the conjugate; the baker wrote quats verbatim, the engine
+ builds the transposed RW basis - same math both sides, verified visually
+ against PPSSPP renders)."""
     x2, y2, z2 = qx+qx, qy+qy, qz+qz
     xx, yy, zz = qx*x2, qy*y2, qz*z2
     xy, xz, yz = qx*y2, qx*z2, qy*z2

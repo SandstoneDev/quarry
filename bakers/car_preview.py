@@ -2,8 +2,8 @@
 """car_preview - offline software render of car.bin (CAR3), GE-faithful.
 
 Rasterizes the baked car exactly the way the PSP GE will sample it:
-  pos = s16 * scale + center (car space), uv = s16 / 4096 (TexScale 8.0 on GE),
-  REPEAT wrap, nearest sample, MODULATE by the baked vertex colour.
+ pos = s16 * scale + center (car space), uv = s16 / 4096 (TexScale 8.0 on GE),
+ REPEAT wrap, nearest sample, MODULATE by the baked vertex colour.
 Wheel mesh is instanced at the 4 mounts. Output: side + 3/4 PNG views.
 
 Use to verify texture mapping / paint / damage meshes without a PPSSPP camera
@@ -184,7 +184,7 @@ def main():
     car = read_car(CAR)
     tris = gather(car, dam=dam, use_vlo=vlo)
     tag = "dam" if dam else ("vlo" if vlo else "ok")
-    # side view: car +Y (fwd) -> screen -X ... look from +X (right side)
+    # side view: car +Y (fwd) -> screen -X... look from +X (right side)
     side = np.array([[0, -1, 0], [0, 0, -1], [-1, 0, 0]], np.float32)
     # 3/4 front-left ~ rotate 35deg + slight top-down
     import math

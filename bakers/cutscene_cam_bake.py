@@ -2,20 +2,20 @@
 into a compact binary the runtime CCutsceneCam samples on the cutscene clock.
 
 The .dat is CSV text, four tracks in order, each: a count line then <count> rows.
-Row = "time_f, (value,inTan,outTan) x N,"  - N=1 for scalar tracks, N=3 for vec3.
-  1) FOV     scalar (degrees)         e.g. 85..28
-  2) ROLL    scalar (degrees)
-  3) POS     vec3   (camera position, RELATIVE to the .cut `offset`)
-  4) TARGET  vec3   (look-at point,   RELATIVE to the .cut `offset`)
+Row = "time_f, (value,inTan,outTan) x N," - N=1 for scalar tracks, N=3 for vec3.
+ 1) FOV scalar (degrees) e.g. 85..28
+ 2) ROLL scalar (degrees)
+ 3) POS vec3 (camera position, RELATIVE to the .cut `offset`)
+ 4) TARGET vec3 (look-at point, RELATIVE to the .cut `offset`)
 Times are seconds; the four tracks share the cutscene clock (intro1a ~100.7s).
 Stray ';' / blank terminator lines can appear between tracks - skip them.
 
 We keep only the VALUE column of each triple (linear interp at runtime; the source
 tangents are close to linear for these scenes and a Catmull pass can come later).
 
-Output  data/cutscene/<name>_cam.bin:
-  'CCAM' | u32 offX,offY,offZ (f32, the .cut world offset) | 4 tracks
-  track: u16 dim (1 or 3) | u16 nkeys | nkeys*(f32 time + dim*f32 value)
+Output data/cutscene/<name>_cam.bin:
+ 'CCAM' | u32 offX,offY,offZ (f32, the .cut world offset) | 4 tracks
+ track: u16 dim (1 or 3) | u16 nkeys | nkeys*(f32 time + dim*f32 value)
 """
 import os, sys, struct, re
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

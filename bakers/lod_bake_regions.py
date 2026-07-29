@@ -12,9 +12,9 @@ tile -> the link resolves locally; a proxy in a neighbour tile gets -1 (the deta
 just vanishes far out, as on the real map edge).
 
 Reuses lod_bake.load_ipl_links (IPL `lod` field -> key->key map) verbatim; only the
-pmap-key step is per-tile.  Same PLOD layout as lod.bin.
+pmap-key step is per-tile. Same PLOD layout as lod.bin.
 
-Usage: python lod_bake_regions.py <region_dir>   (dir holding region_*.pmap)
+Usage: python lod_bake_regions.py <region_dir> (dir holding region_*.pmap)
 """
 import os, sys, glob, struct
 import lod_bake   # sibling: load_ipl_links, ROOTS, ipl_key, _qpack
@@ -22,7 +22,7 @@ import lod_bake   # sibling: load_ipl_links, ROOTS, ipl_key, _qpack
 
 def load_tile_keys(path):
     """instance keys (pos f32 + quat s16 + is_lod byte) for one region .pmap tile,
-    in on-disk order, plus key->local-index (first wins on dup)."""
+ in on-disk order, plus key->local-index (first wins on dup)."""
     with open(path, 'rb') as f:
         v = struct.unpack_from('<20I', f.read(80), 0)
         ic, ioff = v[9], v[10]
@@ -95,7 +95,7 @@ def main():
                 # co-located proxy (first; SA is 1 proxy per detail spot)
                 lod_idx[k] = cand[0]
                 total_links += 1
-        out = path[:-5] + ".lod"                      # region_x_y.pmap -> .lod
+        out = path[:-5] + ".lod"                      # region_x_y.pmap ->.lod
         with open(out, 'wb') as o:
             o.write(struct.pack('<3I', 0x444F4C50, 1, ic))   # 'PLOD', version 1, count
             o.write(struct.pack('<%di' % ic, *lod_idx))

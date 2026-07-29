@@ -2,28 +2,28 @@
 
 Two physical carriers of the same world placement data:
 
-* **Text IPL** - disc ``DATA/MAPS/**/*.IPL``.  Human-readable; the ``inst``
-  section holds 11 CSV fields per instance.  Carries LODs and the
-  non-streamed instances.
+* **Text IPL** - disc ``DATA/MAPS/**/*.IPL``. Human-readable; the ``inst``
+ section holds 11 CSV fields per instance. Carries LODs and the
+ non-streamed instances.
 * **Binary IPL** - ``*_stream*.ipl`` entries inside ``GTA3.IMG``, magic
-  ``bnry``.  Holds the bulk (streamed building instances).  40-byte INST
-  records.  PS2 layout is identical to the PC ``bnry`` format.
+ ``bnry``. Holds the bulk (streamed building instances). 40-byte INST
+ records. PS2 layout is identical to the PC ``bnry`` format.
 
-Both decode into the same :class:`Inst`.  The binary form does **not** store
+Both decode into the same :class:`Inst`. The binary form does **not** store
 the model *name* (resolve via :mod:`gvcslib.sa_ide`); ``name`` is ``''`` there.
 
 Field order (both forms)::
 
-    model_id, name, interior, posX, posY, posZ, rotX, rotY, rotZ, rotW, lod
+ model_id, name, interior, posX, posY, posZ, rotX, rotY, rotZ, rotW, lod
 
 ``lod`` is an index into the *same IPL's* instance list (the high-LOD proxy),
-or -1 for none.  ``rot`` is the stored unit quaternion (engine conjugates it
+or -1 for none. ``rot`` is the stored unit quaternion (engine conjugates it
 at load; we keep the on-disk value verbatim).
 
 In **binary** IPLs the third on-disk field is **not** ``interior`` but
 ``flags_area = (flags<<8)|areaCode`` (see :class:`Inst`): ``interior`` then holds
 just the low-byte area code, ``flags_area`` the raw word, and :attr:`Inst.flags`
-the high bits (0x100 underwater, 0x400 tunnel, ...).  Text IPLs keep a genuine
+the high bits (0x100 underwater, 0x400 tunnel, ...). Text IPLs keep a genuine
 ``interior`` column and ``flags_area is None``.
 """
 import os
@@ -31,7 +31,7 @@ import struct
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
-# Binary `bnry` header: magic@0x00, numInst@0x04, offsetInst@0x1c.  INST record
+# Binary `bnry` header: magic@0x00, numInst@0x04, offsetInst@0x1c. INST record
 # = 7 float32 (pos xyz + quat xyzw) then 3 int32: model_id, flagsArea, lod.
 # The middle int32 is NOT an interior id - it is flagsArea = (flags<<8)|areaCode.
 # SA loader CFileLoader::CreateEntityFromInstance (the original loader) reads it
@@ -48,12 +48,12 @@ INST_SIZE = _INST_REC.size  # 40
 class Inst:
     """One world placement (text or binary IPL).
 
-    ``interior`` is the genuine interior id for **text** IPLs.  For **binary**
-    (`bnry`) IPLs the on-disk middle int32 is ``flags_area = (flags<<8)|areaCode``
-    (NOT an interior); there ``interior`` holds only the low-byte area code and the
-    raw word is kept in ``flags_area`` (``None`` for text).  Use :attr:`area` and
-    :attr:`flags` to read either form uniformly.
-    """
+ ``interior`` is the genuine interior id for **text** IPLs. For **binary**
+ (`bnry`) IPLs the on-disk middle int32 is ``flags_area = (flags<<8)|areaCode``
+ (NOT an interior); there ``interior`` holds only the low-byte area code and the
+ raw word is kept in ``flags_area`` (``None`` for text). Use :attr:`area` and
+ :attr:`flags` to read either form uniformly.
+ """
     __slots__ = ("model_id", "name", "interior", "pos", "rot", "lod", "flags_area")
     model_id: int
     name: str
@@ -133,10 +133,10 @@ def parse_binary_ipl(blob) -> List[Inst]:
 def load_all(data_dir, img=None) -> List[Inst]:
     """All placements: text ``inst`` from ``DATA/MAPS/**`` + binary from ``img``.
 
-    ``data_dir`` = the ``DATA`` folder.  ``img`` = an open
-    :class:`gvcslib.sa_img.SaImg` (its ``*_stream*.ipl`` entries are parsed);
-    pass ``None`` to skip the binary set.
-    """
+ ``data_dir`` = the ``DATA`` folder. ``img`` = an open
+ :class:`gvcslib.sa_img.SaImg` (its ``*_stream*.ipl`` entries are parsed);
+ pass ``None`` to skip the binary set.
+ """
     out = []
     maps = os.path.join(data_dir, "MAPS")
     for root, _d, files in os.walk(maps):

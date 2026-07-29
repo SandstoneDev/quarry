@@ -1,9 +1,9 @@
-
+// Runs the project's Python bakers. phase 1: system python (PATH or the py launcher)
 // + baker scripts found next to the exe (bakers/) or in the repo dev tree.
-
+// phase 4: the release bundle (built by tools/quarry/build_bundle.ps1) ships an
 // embedded CPython at python/python.exe beside Quarry.exe; FindPython prefers it
 // so the shipped tool runs with ZERO installed dependencies. Its python314._pth
-// (stdlib + . + Lib\site-packages + ..\bakers, and deliberately NO `import site`)
+// (stdlib +. + Lib\site-packages +..\bakers, and deliberately NO `import site`)
 // makes the interpreter resolve the bundled numpy/Pillow/lz4 and the vendored
 // gvcslib/formats/core WITHOUT any PYTHONPATH or -s flag, and stays isolated from
 // the user's %APPDATA% site-packages.
@@ -14,7 +14,7 @@ namespace Quarry;
 
 public static class PythonRunner
 {
-    public static string? FindPython
+    public static string? FindPython()
     {
         // Shipping bundle: the embedded interpreter beside the exe wins outright --
         // it must never silently fall back to a (possibly absent or broken) system
@@ -32,7 +32,7 @@ public static class PythonRunner
                 p.WaitForExit(5000);
                 if (p.ExitCode == 0) return exe;
             }
-            catch { /* not installed under this name - try the next */ }
+            catch { /* not installed under this name; try the next */ }
         }
         return null;
     }
@@ -94,11 +94,11 @@ public static class PythonRunner
         }
         p.OutputDataReceived += (_, e) => Handle(e.Data);
         p.ErrorDataReceived += (_, e) => { if (e.Data is not null) log("   ! " + e.Data); };
-        p.Start;
-        p.BeginOutputReadLine;
-        p.BeginErrorReadLine;
-        using (ct.Register( => { try { if (!p.HasExited) p.Kill(entireProcessTree: true); } catch { } }))
-            p.WaitForExit;
+        p.Start();
+        p.BeginOutputReadLine();
+        p.BeginErrorReadLine();
+        using (ct.Register(() => { try { if (!p.HasExited) p.Kill(entireProcessTree: true); } catch { } }))
+            p.WaitForExit();
         return p.ExitCode == 0;
     }
 

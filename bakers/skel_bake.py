@@ -4,9 +4,9 @@ into skel.bin for the PSP skeletal-animation runtime. Mesh + textures stay in
 char.bin (same DFF -> same vertex order); skel.bin adds the rig & anim only.
 
 Sources (both validated byte-exact):
-  tools/sa_skin.decode(dff)  -> {frames:[{rot(3x3),pos,parent,nodeId}], nodes:[(id,idx,flg)],
-                                 geoms:[{nvert,numBones,boneIdx[v][4],boneW[v][4],invBind[b][16]}]}
-  tools/sa_ifp.decode(ifp)   -> {anims:[{name,seqs:[{name,boneTag,keyType,numFrames,kf bytes}]}]}
+ tools/sa_skin.decode(dff) -> {frames:[{rot(3x3),pos,parent,nodeId}], nodes:[(id,idx,flg)],
+ geoms:[{nvert,numBones,boneIdx[v][4],boneW[v][4],invBind[b][16]}]}
+ tools/sa_ifp.decode(ifp) -> {anims:[{name,seqs:[{name,boneTag,keyType,numFrames,kf bytes}]}]}
 
 Bone ordering in skel.bin == the SKIN bone order (0..numBones-1), which is also the
 invBind order and what vertex boneIdx[] already references. Each bone stores its
@@ -15,12 +15,12 @@ Clip tracks resolve boneTag(=nodeId) -> skin-bone index; keyframes kept compress
 (s16: quat/4096, trans/1024, time/60s).
 
 skel.bin layout (little-endian):
-  'SKL1' | u16 numBones | u16 numClips | u32 numVerts
-  bones[numBones]:  s16 parent | s16 nodeId | f32 bindQuat[4] | f32 bindPos[3] | f32 invBind[16]
-  skin[numVerts]:   u8 boneIdx[4] | f32 boneW[4]
-  clips[numClips]:  char name[24] | f32 duration | u16 numTracks | u16 pad
-     track:  s16 boneIdx | u8 hasTrans | u8 pad | u16 numKeys
-             keys[numKeys]: s16 q[4] | s16 time | (s16 t[3] if hasTrans)
+ 'SKL1' | u16 numBones | u16 numClips | u32 numVerts
+ bones[numBones]: s16 parent | s16 nodeId | f32 bindQuat[4] | f32 bindPos[3] | f32 invBind[16]
+ skin[numVerts]: u8 boneIdx[4] | f32 boneW[4]
+ clips[numClips]: char name[24] | f32 duration | u16 numTracks | u16 pad
+ track: s16 boneIdx | u8 hasTrans | u8 pad | u16 numKeys
+ keys[numKeys]: s16 q[4] | s16 time | (s16 t[3] if hasTrans)
 """
 import math
 import os

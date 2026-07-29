@@ -1,10 +1,10 @@
 // Quarry entry point. CLI verbs for development smoke tests against reference
 // images; no args = the GUI.
-//   Quarry --probe <iso>            print detection result
-//   Quarry --list <iso> [prefix]    list ISO contents (optionally under prefix)
-//   Quarry --imgdir <iso> <path>    list an IMG archive's directory (first 20 + count)
-//   Quarry --convert <iso> <out> [ids]  run the pipeline headless (ids = comma
-//                                        list of section ids; default = all available)
+// Quarry --probe <iso> print detection result
+// Quarry --list <iso> [prefix] list ISO contents (optionally under prefix)
+// Quarry --imgdir <iso> <path> list an IMG archive's directory (first 20 + count)
+// Quarry --convert <iso> <out> [ids] run the pipeline headless (ids = comma
+// list of section ids; default = all available)
 namespace Quarry;
 
 public static class Program
@@ -17,8 +17,8 @@ public static class Program
     {
         if (args.Length == 0)
         {
-            ApplicationConfiguration.Initialize;
-            Application.Run(new MainForm);
+            ApplicationConfiguration.Initialize();
+            Application.Run(new MainForm());
             return 0;
         }
         AttachConsole(-1);   // WinExe has no console; reattach to the launching terminal for CLI verbs
@@ -30,14 +30,14 @@ public static class Program
                 {
                     using var iso = new Iso9660Reader(args[1]);
                     var info = GameVersion.Probe(iso);
-                    Console.WriteLine(info is null ? "not a PS2 disc image" : info.ToString);
+                    Console.WriteLine(info is null ? "not a PS2 disc image" : info.ToString());
                     return info is { Supported: true } ? 0 : 2;
                 }
                 case "--list":
                 {
                     using var iso = new Iso9660Reader(args[1]);
-                    string prefix = args.Length > 2 ? args[2].ToUpperInvariant : "";
-                    foreach (var e in iso.ListAll)
+                    string prefix = args.Length > 2 ? args[2].ToUpperInvariant() : "";
+                    foreach (var e in iso.ListAll())
                         if (e.Path.StartsWith(prefix))
                             Console.WriteLine($"{(e.IsDirectory ? "D" : " ")} {e.Size,10} {e.Path}");
                     return 0;
@@ -81,7 +81,7 @@ public static class Program
                 }
                 case "--verify":
                 {
-                    // Quarry --verify <dataDir> : integrity check against the manifest
+                    // Quarry --verify <dataDir>: integrity check against the manifest
                     string dataDir = args[1];
                     var m = Manifest.Load(dataDir);
                     if (m.Stages.Count == 0)
@@ -101,16 +101,16 @@ public static class Program
                     {
                         IsoPath = args[1],
                         OutDir = args[2],
-                        TempDir = Path.Combine(Path.GetTempPath, "quarry_cli"),
+                        TempDir = Path.Combine(Path.GetTempPath(), "quarry_cli"),
                         Log = Console.WriteLine,
                     };
                     // optional 3rd arg = comma list of section ids; default = all available
                     var ids = args.Length > 3
-                        ? args[3].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet
-                        : ConvertPipeline.Sections.Where(s => s.Available).Select(s => s.Id).ToHashSet;
+                        ? args[3].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet()
+                        : ConvertPipeline.Sections.Where(s => s.Available).Select(s => s.Id).ToHashSet();
                     ids.Add("core");                 // core always runs
                     bool ok;
-                    try { ok = ConvertPipeline.Run(cx, ids); } finally { cx.Iso?.Dispose; }
+                    try { ok = ConvertPipeline.Run(cx, ids); } finally { cx.Iso?.Dispose(); }
                     return ok ? 0 : 1;
                 }
                 default:
@@ -126,7 +126,7 @@ public static class Program
     }
 
     /// Open an IMG archive stream: from inside an ISO (imgPathOnIso given) or a
-    /// local .img file. Caller disposes.
+    /// local.img file. Caller disposes.
     private static Stream OpenImg(string path, string? imgPathOnIso)
     {
         if (imgPathOnIso is not null)

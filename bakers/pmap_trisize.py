@@ -5,7 +5,7 @@ guard band, so large near tiles vanish when the camera rotates. If the map has
 many large triangles, tessellation is required.
 
 vertex (PmapVertex, 12B): s16 u,v | u16 color | s16 x,y,z
-world edge length = |pos_i16_a - pos_i16_b| * model.scale   (center cancels)
+world edge length = |pos_i16_a - pos_i16_b| * model.scale (center cancels)
 """
 import struct
 import sys

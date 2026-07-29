@@ -6,25 +6,25 @@ Direct sibling of road_sidecar_bake.py. The .pmap stores only a tile-local model
 against the SA IPL placements, looks up each matched model's IDE `Flags` int, decodes the
 4 render bits below, and writes them keyed by the tile-local MODEL index:
 
-  TWOSIDED  IDE 0x200000  DISABLE_BACKFACE_CULLING -> .mflags bit0
-  ADDITIVE  IDE 0x8       ADDITIVE                 -> .mflags bit1  (objs section ONLY --
-                            tobj-section additive is already carried by region_X_Y.tobj
-                            bit7; load_defs tags every tobj row with a 'time_on' key, so a
-                            def WITHOUT 'time_on' == objs section)
-  DRAWLAST  IDE 0x4       DRAW_LAST                -> .mflags bit2
-  NOZWRITE  IDE 0x40      NO_ZBUFFER_WRITE         -> .mflags bit3
+ TWOSIDED IDE 0x200000 DISABLE_BACKFACE_CULLING -> .mflags bit0
+ ADDITIVE IDE 0x8 ADDITIVE -> .mflags bit1 (objs section ONLY --
+ tobj-section additive is already carried by region_X_Y.tobj
+ bit7; load_defs tags every tobj row with a 'time_on' key, so a
+ def WITHOUT 'time_on' == objs section)
+ DRAWLAST IDE 0x4 DRAW_LAST -> .mflags bit2
+ NOZWRITE IDE 0x40 NO_ZBUFFER_WRITE -> .mflags bit3
 
 Output region_X_Y.mflags (same framing as region_X_Y.road):
 
-  'MFLG' u16 modelCount u16 version(=1), then modelCount x { u16 localModelIdx, u8 flags }
+ 'MFLG' u16 modelCount u16 version(=1), then modelCount x { u16 localModelIdx, u8 flags }
 
 sparse - only models with >=1 of the 4 bits are emitted. A missing .mflags file is a
 runtime no-op (Streaming.load_region_mflags), so every region without one behaves exactly
 as before. The runtime ORs PMAP_MODELFLAG_{TWOSIDED,ADDITIVE,DRAWLAST,NOZWRITE} into that
 model's per-model flag word and the renderer applies each (ide_flags_pipeline_audit.md).
 
-Usage:  python tools/mflags_sidecar_bake.py [chunks_dir] [--verify]
-        --verify = dry run: report the counts, write nothing, delete nothing.
+Usage: python tools/mflags_sidecar_bake.py [chunks_dir] [--verify]
+ --verify = dry run: report the counts, write nothing, delete nothing.
 """
 import glob
 import os
@@ -36,13 +36,13 @@ import sa_source
 
 CHUNKS = ""
 
-# SA IDE Flags int bits (PC/PS2 text .ide layout - ide_flags_pipeline_audit.md §0).
+# SA IDE Flags int bits (PC/PS2 text.ide layout - ide_flags_pipeline_audit.md §0).
 IDE_TWOSIDED = 0x200000
 IDE_ADDITIVE = 0x8
 IDE_DRAWLAST = 0x4
 IDE_NOZWRITE = 0x40
 
-# .mflags payload byte bits (match Streaming.load_region_mflags bit0..3).
+#.mflags payload byte bits (match Streaming.load_region_mflags bit0..3).
 F_TWOSIDED = 1
 F_ADDITIVE = 2
 F_DRAWLAST = 4
@@ -51,8 +51,8 @@ F_NOZWRITE = 8
 
 def model_flag_bits(d):
     """Decode one def's IDE Flags int -> our 4-bit .mflags payload byte. ADDITIVE is
-    honored ONLY for objs-section models (a tobj row carries 'time_on'); tobj additive
-    is the existing region_X_Y.tobj bit7 path and must not be duplicated here."""
+ honored ONLY for objs-section models (a tobj row carries 'time_on'); tobj additive
+ is the existing region_X_Y.tobj bit7 path and must not be duplicated here."""
     fl = d.get("flags", 0)
     is_tobj = "time_on" in d
     b = 0
@@ -69,7 +69,7 @@ def model_flag_bits(d):
 
 def flagged_positions():
     """({(x,y,z rounded 0.1): OR of flag bits}, n_flagged_models, n_instances, counts).
-    sa_source handles both text + binary IPLs (same source road_sidecar_bake matches on)."""
+ sa_source handles both text + binary IPLs (same source road_sidecar_bake matches on)."""
     defs = sa_source.load_defs()
     img = sa_source.open_img()
     inst = sa_source.load_instances(defs, img)
@@ -104,7 +104,7 @@ def flagged_positions():
 
 def region_model_flags(path, flag_pos):
     """{tile-local model idx: OR of flag bits} for this region's instances whose position
-    matches a flagged SA placement. Identical .pmap walk to road_sidecar_bake."""
+ matches a flagged SA placement. Identical .pmap walk to road_sidecar_bake."""
     blob = open(path, "rb").read()
     inst_count = struct.unpack_from("<I", blob, 36)[0]
     inst_off = struct.unpack_from("<I", blob, 40)[0]
@@ -146,7 +146,7 @@ def main():
         mf = region_model_flags(pmap, flag_pos)
         if not mf:
             if not verify and os.path.exists(out):
-                os.remove(out)                            # stale sidecar -> drop (like .road)
+                os.remove(out)                            # stale sidecar -> drop (like.road)
             continue
         if not verify:
             buf = b"MFLG" + struct.pack("<HH", len(mf), 1)   # magic + u16 count + u16 version

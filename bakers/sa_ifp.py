@@ -4,17 +4,17 @@ Port-side codec (gvcslib READ-ONLY). Byte spec: docs 18_data_formats/ifp_format.
 (decoded from CAnimManager::LoadAnimFile 0x4df270).
 
 ANP3 layout (little-endian) - VERIFIED against CAnimManager::LoadAnimFile in the original (static analysis):
-  "ANP3" | u32 blockSize | char blockName[24] | u32 numAnimations
-  per animation: char animName[24] | u32 numSeq | u32 totalKeyframeBytes | u32 flags
-    per sequence: char seqName[24] | u32 keyTypeCode | u32 numFrames | s32 boneTag
-                  then numFrames keyframes contiguous. Stride is keyed by CODE
-                  (the ANP3 flag only governs cursor accounting, not stride):
-      code 1 -> 0x14 (20)  uncompressed rot-only   : f32 qx,qy,qz,qw, time
-      code 2 -> 0x20 (32)  uncompressed rot+trans   : f32 qx,qy,qz,qw, time, tx,ty,tz
-      code 3 -> 0x0A (10)  compressed   rot-only    : s16 qx,qy,qz,qw, time
-      code 4 -> 0x10 (16)  compressed   rot+trans   : s16 qx,qy,qz,qw, time, tx,ty,tz
-  dequant (compressed): quat = s16/4096, trans = s16/1024, time = s16/60 (sec).
-  quat x,y,z are stored NEGATED (conjugate) on disk.
+ "ANP3" | u32 blockSize | char blockName[24] | u32 numAnimations
+ per animation: char animName[24] | u32 numSeq | u32 totalKeyframeBytes | u32 flags
+ per sequence: char seqName[24] | u32 keyTypeCode | u32 numFrames | s32 boneTag
+ then numFrames keyframes contiguous. Stride is keyed by CODE
+ (the ANP3 flag only governs cursor accounting, not stride):
+ code 1 -> 0x14 (20) uncompressed rot-only : f32 qx,qy,qz,qw, time
+ code 2 -> 0x20 (32) uncompressed rot+trans : f32 qx,qy,qz,qw, time, tx,ty,tz
+ code 3 -> 0x0A (10) compressed rot-only : s16 qx,qy,qz,qw, time
+ code 4 -> 0x10 (16) compressed rot+trans : s16 qx,qy,qz,qw, time, tx,ty,tz
+ dequant (compressed): quat = s16/4096, trans = s16/1024, time = s16/60 (sec).
+ quat x,y,z are stored NEGATED (conjugate) on disk.
 
 Returns: [ {name, flags, seqs:[ {name, boneTag, keyType, stride, numFrames, kf(bytes)} ]} ].
 Run directly to validate against ANIM/PED.IFP (cursor == totalKeyframeBytes per anim).

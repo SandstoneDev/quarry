@@ -2,8 +2,8 @@
 """Bake the PS2 rom's data/info.zon into data/hud/zones.bin for the b616
 
 zones.bin: 'ZON1' + u32 count + per zone:
-  key[8]   zero-padded GXT key (the label; CText resolves it, else shown raw)
-  min[3]f  max[3]f
+ key[8] zero-padded GXT key (the label; CText resolves it, else shown raw)
+ min[3]f max[3]f
 Smallest-area containing zone wins at runtime (SA nests zones).
 """
 import struct

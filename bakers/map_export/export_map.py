@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """export_map - THE map exporter CLI (map-export-v2, SAW-based, float-space).
 
-  python tools/map_export/export_map.py out_pilot/ --tile-at 2471 -1674
-  python tools/map_export/export_map.py out_ls/    --bbox 471 -2938 3306 326
-  python tools/map_export/export_map.py out_world/ --all
+ python tools/map_export/export_map.py out_pilot/ --tile-at 2471 -1674
+ python tools/map_export/export_map.py out_ls/ --bbox 471 -2938 3306 326
+ python tools/map_export/export_map.py out_world/ --all
 
 Grid alignment: the region grid origin is ALWAYS the shipped chunks origin
 (471,-2745) so tile indices match the chunks_small set for A/B comparison.

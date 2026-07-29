@@ -17,7 +17,7 @@ _MIRRORS = [
 
 def targets(path):
     """The memstick path plus its device-side deploy mirrors (only if the path is under the
-    memstick data root; otherwise just the path itself)."""
+ memstick data root; otherwise just the path itself)."""
     p = path.replace("\\", "/")
     out = [p]
     if _MEMSTICK in p:
@@ -27,7 +27,7 @@ def targets(path):
 
 def mirror(path, data):
     """Write `data` (bytes) to `path` and its mirror build dirs. mkdir on demand; a target
-    whose parent dir does not exist yet is created. Returns how many files were written."""
+ whose parent dir does not exist yet is created. Returns how many files were written."""
     n = 0
     for t in targets(path):
         try:

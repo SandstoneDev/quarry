@@ -5,9 +5,9 @@ The unarmed weapon-icon slot uses the real SA "fist" texture from models/hud.txd
 (64x64 RGBA). Packed into hud.bin for CHud to draw as the weapon icon.
 
 hud.bin:
-  'HUD1'
-  u32 fistW, fistH       (64, 64)
-  fistW*fistH RGBA8888    (fist)
+ 'HUD1'
+ u32 fistW, fistH (64, 64)
+ fistW*fistH RGBA8888 (fist)
 """
 import os
 import struct

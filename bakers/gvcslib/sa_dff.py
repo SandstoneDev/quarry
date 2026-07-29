@@ -82,32 +82,32 @@ class SaModel:
 def _walk_dma_chain(b: bytes, chain_start: int, chunk_end: int):
     """Walk the DMA source chain in a single PS2_NATIVE packet.
 
-    Returns (split_pos_nums, data_block_start) where:
-      split_pos_nums    = per-split POS vertex count (from the V4_16 VU-dst-0 UNPACK num)
-      data_block_start  = byte offset of the first POS entry in the flat attribute arrays
+ Returns (split_pos_nums, data_block_start) where:
+ split_pos_nums = per-split POS vertex count (from the V4_16 VU-dst-0 UNPACK num)
+ data_block_start = byte offset of the first POS entry in the flat attribute arrays
 
-    Chain layout (per recon docs):
-      - ref tags (id=3): carry UNPACK VIFcode in v1; advance o by 16 (data is external).
-      - cnt qwc=0 (id=1): NOP padding; advance by 16.
-      - cnt qwc=1 (id=1): intra-chain split separator; inline data = 1 GIFtag qword;
-        advance by 32; signals end of the PREVIOUS split's three ref tags.
-      - ret qwc=1 (id=6): final terminator for single-packet chains; inline data = 1
-        GIFtag qword at (tag_off + 16). data_block_start = tag_off + 16 + qwc*16.
+ Chain layout (per recon docs):
+ - ref tags (id=3): carry UNPACK VIFcode in v1; advance o by 16 (data is external).
+ - cnt qwc=0 (id=1): NOP padding; advance by 16.
+ - cnt qwc=1 (id=1): intra-chain split separator; inline data = 1 GIFtag qword;
+ advance by 32; signals end of the PREVIOUS split's three ref tags.
+ - ret qwc=1 (id=6): final terminator for single-packet chains; inline data = 1
+ GIFtag qword at (tag_off + 16). data_block_start = tag_off + 16 + qwc*16.
 
-    For multi-packet chains (separated by ret tags) each packet has its own data block.
-    This function handles one packet and returns at the first ret encountered.
+ For multi-packet chains (separated by ret tags) each packet has its own data block.
+ This function handles one packet and returns at the first ret encountered.
 
-    NOTE - contiguous-block assumption: this parser treats the attribute data as a single
-    flat block starting at data_block_start and ignores the `addr` ADDR fields carried in
-    the ref tags (those are PS2 VU-memory addresses, not host offsets).  This holds for
-    all SA single-packet and multi-packet map models seen so far (bridge_1, statue, etc.).
+ NOTE - contiguous-block assumption: this parser treats the attribute data as a single
+ flat block starting at data_block_start and ignores the `addr` ADDR fields carried in
+ the ref tags (those are PS2 VU-memory addresses, not host offsets). This holds for
+ all SA single-packet and multi-packet map models seen so far (bridge_1, statue, etc.).
 
-    UNPACK vl/vn disambiguation:
-      VU dst 0 (imm & 0x3FF == 0) = POS  (V4_16, usn=0)
-      VU dst 1 (imm & 0x3FF == 1) = UV   (V2_16, usn=0)
-      VU dst 2 (imm & 0x3FF == 2) = COL  (V4_16, usn=1)
-    We collect the POS UNPACK num for each split.
-    """
+ UNPACK vl/vn disambiguation:
+ VU dst 0 (imm & 0x3FF == 0) = POS (V4_16, usn=0)
+ VU dst 1 (imm & 0x3FF == 1) = UV (V2_16, usn=0)
+ VU dst 2 (imm & 0x3FF == 2) = COL (V4_16, usn=1)
+ We collect the POS UNPACK num for each split.
+ """
     o = chain_start
     split_pos_nums: List[int] = []
     current_pos_num: int = 0
@@ -142,7 +142,7 @@ def _walk_dma_chain(b: bytes, chain_start: int, chunk_end: int):
 
         elif idv == 6:    # ret: end of this packet
             # The inline qword (qwc=1) is the final GIFtag before the data block.
-            # SA invariant: qwc == 1 here.  If qwc == 0 data_block_start would be
+            # SA invariant: qwc == 1 here. If qwc == 0 data_block_start would be
             # wrong (points to the GIFtag itself); treat as unrecognised layout.
             split_pos_nums.append(current_pos_num)
             data_block_start = o + 16 + qwc * 16
@@ -164,23 +164,23 @@ def _is_valid_pos(x: int, y: int, z: int, w: int) -> bool:
 def _decode_pos_uv_col(b: bytes, db: int, chunk_end: int, split_pos_nums: List[int]):
     """Read the flat POS / UV / COL arrays that begin at data_block_start (db).
 
-    Layout (all splits concatenated):
-      [n_total * V4_16]  POS   (8 bytes/vert)   <- starts at db
-      [pad to qword from db]
-      [n_total * V2_16]  UV    (4 bytes/vert)
-      [pad to qword from db]
-      [n_total * V4_16]  COL   (8 bytes/vert)
+ Layout (all splits concatenated):
+ [n_total * V4_16] POS (8 bytes/vert) <- starts at db
+ [pad to qword from db]
+ [n_total * V2_16] UV (4 bytes/vert)
+ [pad to qword from db]
+ [n_total * V4_16] COL (8 bytes/vert)
 
-    The POS UNPACK num fields may include a few DMA-buffer padding entries at the end
-    of the last split. We scan forward from db and stop at the first entry that fails
-    the _is_valid_pos check, giving the true n_total.
+ The POS UNPACK num fields may include a few DMA-buffer padding entries at the end
+ of the last split. We scan forward from db and stop at the first entry that fails
+ the _is_valid_pos check, giving the true n_total.
 
-    Returns:
-      positions : list of (x_f, y_f, z_f, w_raw)  w_raw = 0 (continue) or -32768 (restart)
-      uvs       : list of (u_f, v_f)
-      colors    : list of packed RGBA8888 ints
-      split_vcounts : per-split true vertex counts (prefix-sum over valid pos run)
-    """
+ Returns:
+ positions : list of (x_f, y_f, z_f, w_raw) w_raw = 0 (continue) or -32768 (restart)
+ uvs : list of (u_f, v_f)
+ colors : list of packed RGBA8888 ints
+ split_vcounts : per-split true vertex counts (prefix-sum over valid pos run)
+ """
     n_max = sum(split_pos_nums)
     if n_max == 0 or db >= chunk_end:
         return [], [], [], []
@@ -222,7 +222,7 @@ def _decode_pos_uv_col(b: bytes, db: int, chunk_end: int, split_pos_nums: List[i
 
     # --- UV array start: after the FULL POS block (n_max entries), qword-aligned from db ---
     # IMPORTANT: UV/COL are laid out after the *entire* POS buffer (n_max * 8 bytes),
-    # including any DMA-padding entries beyond n_valid.  Using n_valid here would give
+    # including any DMA-padding entries beyond n_valid. Using n_valid here would give
     # wrong offsets whenever the last split has padding vertices.
     pos_bytes = n_max * 8
     uv_start = db + pos_bytes
@@ -262,16 +262,16 @@ def _decode_pos_uv_col(b: bytes, db: int, chunk_end: int, split_pos_nums: List[i
 def _strip_to_tris_local(vcnt: int, positions_global: list, vtx_base: int):
     """Convert one split's tri-strip to mesh-local triangle indices.
 
-    Vertex range in positions_global is [vtx_base, vtx_base + vcnt).
-    Uses ADC W-bit (w != 0 ⟹ strip restart at current vertex; skip triangle).
-    Winding alternates by absolute strip position k (not reset on restart).
-    Degenerate triangles (repeated index) are skipped.
+ Vertex range in positions_global is [vtx_base, vtx_base + vcnt).
+ Uses ADC W-bit (w != 0 ⟹ strip restart at current vertex; skip triangle).
+ Winding alternates by absolute strip position k (not reset on restart).
+ Degenerate triangles (repeated index) are skipped.
 
-    This mirrors librw unconvertADC / the PoC strip_to_tris:
-        for k in range(2, vcnt):
-            if ADC[k]: skip
-            emit (k-2, k-1, k) with alternating winding by k parity.
-    """
+ This mirrors librw unconvertADC / the PoC strip_to_tris:
+ for k in range(2, vcnt):
+ if ADC[k]: skip
+ emit (k-2, k-1, k) with alternating winding by k parity.
+ """
     tris = []
     for k in range(2, vcnt):
         gi = vtx_base + k
@@ -317,11 +317,11 @@ def _get_material_names(blob: bytes, geo: Chunk):
 
 def _parse_binmesh_mats(blob: bytes, ext) -> List[int]:
     """Return the per-mesh material index list from the Bin-Mesh PLG (0x050E),
-    in draw order.  numMeshes == number of materials with geometry; each mesh is
-    one PS2-native sub-chain.  Returns [] if absent/short.
+ in draw order. numMeshes == number of materials with geometry; each mesh is
+ one PS2-native sub-chain. Returns [] if absent/short.
 
-    binMesh layout: u32 flags, u32 numMeshes, u32 totalIndices, then per mesh
-    { u32 numIndices, i32 matIndex }.  PS2 native carries no index payload."""
+ binMesh layout: u32 flags, u32 numMeshes, u32 totalIndices, then per mesh
+ { u32 numIndices, i32 matIndex }. PS2 native carries no index payload."""
     if not ext:
         return []
     bm = ext.find(BINMESH_PLG)
@@ -345,7 +345,7 @@ def _parse_binmesh_mats(blob: bytes, ext) -> List[int]:
 
 def _is_chain_start(blob: bytes, o: int, end: int) -> bool:
     """True if a 16-byte tag at o begins a native geometry sub-chain
-    (a 'ref' DMA tag carrying STCYCL + an UNPACK to VU dst 0 == POS)."""
+ (a 'ref' DMA tag carrying STCYCL + an UNPACK to VU dst 0 == POS)."""
     if o + 16 > end:
         return False
     taglo, _addr, v0, v1 = struct.unpack_from("<4I", blob, o)
@@ -356,7 +356,7 @@ def _is_chain_start(blob: bytes, o: int, end: int) -> bool:
 
 def _scan_chain_start(blob: bytes, o: int, end: int, origin: int):
     """Find the next sub-chain start at/after o (tags are 16-aligned RELATIVE TO
-    the chain origin, not the file).  Returns offset or None."""
+ the chain origin, not the file). Returns offset or None."""
     rel = (o - origin) % 16
     if rel:
         o += 16 - rel
@@ -369,9 +369,9 @@ def _scan_chain_start(blob: bytes, o: int, end: int, origin: int):
 
 def _data_block_end(db: int, n_max: int) -> int:
     """Byte after a sub-chain's POS+UV+COL data block (mirrors the offset math in
-    _decode_pos_uv_col), i.e. where the next mesh's control/chain region begins.
-    Note: vertex-lit (foliage) variants append extra attribute arrays beyond
-    this; for those the scan simply fails to resync and that mesh is skipped."""
+ _decode_pos_uv_col), i.e. where the next mesh's control/chain region begins.
+ Note: vertex-lit (foliage) variants append extra attribute arrays beyond
+ this; for those the scan simply fails to resync and that mesh is skipped."""
     uv_start = db + n_max * 8
     rem = (uv_start - db) % 16
     if rem:
@@ -386,26 +386,26 @@ def _data_block_end(db: int, n_max: int) -> int:
 def decode(blob) -> SaModel:
     """Decode a the source game PS2-native DFF blob into a SaModel.
 
-    Walks all Geometry chunks → PS2_NATIVE (0x0510) extension → DMA source chain →
-    flat POS/UV/COL attribute arrays → per-split tri-strip → SaMesh list.
+ Walks all Geometry chunks → PS2_NATIVE (0x0510) extension → DMA source chain →
+ flat POS/UV/COL attribute arrays → per-split tri-strip → SaMesh list.
 
-    Chain walk: stops at the first ret (id=6) tag, which also encodes the GIFtag
-    that precedes the data block.  data_block_start = ret_tag_off + 16 + qwc*16.
+ Chain walk: stops at the first ret (id=6) tag, which also encodes the GIFtag
+ that precedes the data block. data_block_start = ret_tag_off + 16 + qwc*16.
 
-    Attribute layout: [POS n_total×8B][pad][UV n_total×4B][pad][COL n_total×8B],
-    all starting from data_block_start. Splits share one flat array in order.
+ Attribute layout: [POS n_total×8B][pad][UV n_total×4B][pad][COL n_total×8B],
+ all starting from data_block_start. Splits share one flat array in order.
 
-    Vertex validity: trailing DMA-buffer padding entries are trimmed by scanning
-    the POS array until the first entry with w not in {0,-32768} or |coord|>32767
-    (full s16 range; W-bit is the primary signal).
+ Vertex validity: trailing DMA-buffer padding entries are trimmed by scanning
+ the POS array until the first entry with w not in {0,-32768} or |coord|>32767
+ (full s16 range; W-bit is the primary signal).
 
-    Triangle generation: ADC W-bit (w!=0) marks strip restart; standard alternating-
-    winding tri-strip emission, skipping degenerate triangles.
+ Triangle generation: ADC W-bit (w!=0) marks strip restart; standard alternating-
+ winding tri-strip emission, skipping degenerate triangles.
 
-    Supports static map geometry (format 0x0101002F). Multi-packet (multi-ret) models
-    are partially supported: each packet is decoded independently and meshes/materials
-    are concatenated (sufficient for the bridge_1 and statue test cases).
-    """
+ Supports static map geometry (format 0x0101002F). Multi-packet (multi-ret) models
+ are partially supported: each packet is decoded independently and meshes/materials
+ are concatenated (sufficient for the bridge_1 and statue test cases).
+ """
     blob = bytes(blob)
     root = parse_chunks(blob)
     model = SaModel()
@@ -430,7 +430,7 @@ def decode(blob) -> SaModel:
         origin = nat.data_off + 0x18
 
         # PS2 native packs ONE sub-chain per Bin-Mesh mesh (== one material), each
-        # ending in a ret.  Decode every mesh, not just the first: the material for
+        # ending in a ret. Decode every mesh, not just the first: the material for
         # a whole sub-chain is binMesh[mesh].matIndex (NOT the split index - splits
         # are VU-sized batches of a SINGLE material).
         mesh_mats = _parse_binmesh_mats(blob, ext)

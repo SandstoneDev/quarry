@@ -8,14 +8,14 @@ this bakes the SPARSE alternative: only vertices whose night colour differs
 from day. Typically a few % (windows), so a tile costs KBs, not hundreds.
 
 Per region (run on the FINAL deployed pmap - vertex indices must match!):
-  1. position-match pmap instances to source IPL rows (sa_source) -> DFF name
-  2. parse the DFF's day+night vertex colours per geometry (local space)
-  3. for each pmap vertex of the model: nearest source vertex (<=0.5u);
-     if source night != day -> emit {global_vidx, night5551}
-     (tessellation midpoints inherit the nearest corner's glow)
-  4. coalesce consecutive same-colour vertices into RUNS (window quads share
-     one colour across 4+ sequential verts) and write region_<rx>_<ry>.nightd:
-       u32 magic 'NDL2'  u32 run_count  then run_count x {u32 vidx, u16 n, u16 col}
+ 1. position-match pmap instances to source IPL rows (sa_source) -> DFF name
+ 2. parse the DFF's day+night vertex colours per geometry (local space)
+ 3. for each pmap vertex of the model: nearest source vertex (<=0.5u);
+ if source night != day -> emit {global_vidx, night5551}
+ (tessellation midpoints inherit the nearest corner's glow)
+ 4. coalesce consecutive same-colour vertices into RUNS (window quads share
+ one colour across 4+ sequential verts) and write region_<rx>_<ry>.nightd:
+ u32 magic 'NDL2' u32 run_count then run_count x {u32 vidx, u16 n, u16 col}
 
 Usage: night_delta_bake.py <chunks_dir> [--only region_12_2] [--report]
 """
@@ -61,8 +61,8 @@ def to5551(r, g, b, a):
 
 def night_verts_of(dff):
     """[(x,y,z,night5551)] for every vertex whose night differs from day.
-    Walks geometry extensions for chunk 0x0253F2F9 via the SAW parser's raw
-    chunk tree (geo.extensions dict if present, else geo.night_colors)."""
+ Walks geometry extensions for chunk 0x0253F2F9 via the SAW parser's raw
+ chunk tree (geo.extensions dict if present, else geo.night_colors)."""
     out = []
     for geo in dff.geometries:
         night = getattr(geo, "night_colors", None)

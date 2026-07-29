@@ -17,7 +17,7 @@ the UVs near 0 so they fit [-8, 8) and no longer clamp. Vertices are not shared
 between submeshes (each submesh owns a contiguous vertex slice), so this is safe.
 
 Run on the RAW v2 tiles BEFORE pmap_lz4.py. Usage:
-  python pmap_uv_recenter.py <region_dir>
+ python pmap_uv_recenter.py <region_dir>
 """
 import os, sys, struct, glob
 

@@ -1,14 +1,14 @@
 """the source game item-definition (.IDE) parser - objs/tobj/anim sections (read-only).
 
 The three sections that define a PLACEABLE world model do NOT share a column
-layout, so a def carries its `section` plus RESOLVED attributes.  Callers must
+layout, so a def carries its `section` plus RESOLVED attributes. Callers must
 read `flags` / `draw_dist` / `anim_block` / `time_on` / `time_off` and never
 index `fields` themselves - a tobj row ends with timeOff (not flags) and an
 anim row carries an extra animBlock column before the draw distance:
 
-    objs   id, dff, txd, [meshCount,] drawDist x meshCount, flags
-    tobj   <the objs columns>, timeOn, timeOff
-    anim   id, dff, txd, animBlock, drawDist, flags
+ objs id, dff, txd, [meshCount,] drawDist x meshCount, flags
+ tobj <the objs columns>, timeOn, timeOff
+ anim id, dff, txd, animBlock, drawDist, flags
 
 `fields` stays the raw CSV split for anything that still wants it.
 """
@@ -37,11 +37,11 @@ def _as_float(s, default=DEFAULT_DRAW_DIST):
 
 def _objs_tail(parts, first=3):
     """Resolve the objs-style tail `[meshCount,] drawDist x meshCount, flags`
-    that starts at column `first`.  Returns (draw_dist, flags).
+ that starts at column `first`. Returns (draw_dist, flags).
 
-    The 5-column short form omits meshCount (one mesh, one distance); the long
-    form spells it out (SA ships exactly one: `320, airtrain_vlo, generic, 1,
-    2000, 0`).  We keep the FIRST (nearest) distance, like the engine's LOD."""
+ The 5-column short form omits meshCount (one mesh, one distance); the long
+ form spells it out (SA ships exactly one: `320, airtrain_vlo, generic, 1,
+ 2000, 0`). We keep the FIRST (nearest) distance, like the engine's LOD."""
     n = len(parts)
     flags = _as_int(parts[-1], 0)
     dd = _as_float(parts[first]) if n > first else DEFAULT_DRAW_DIST

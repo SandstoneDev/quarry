@@ -7,11 +7,11 @@ Reads every DATA/PATHS/NODES%d.DAT via SAW parse_nodes, keeps the PED nodes
 chunk set (origin/tile size from its regions.bin).
 
 pedpath_<rx>_<ry>.bin layout (LE):
-  'PPTH' u16 nnodes u16 nlinks
-  nnodes * { f32 x,y,z; u8 width8 (units*8, cap 255); u8 spawnProb (0-15);
-             u8 flags (bit0 water, bit1 switchedOff, bit2 deadEnd);
-             u8 nlinks; u16 firstLink; u16 pad }
-  nlinks * u32 ref: (rx<<24)|(ry<<16)|localIdx  - target tile + local index
+ 'PPTH' u16 nnodes u16 nlinks
+ nnodes * { f32 x,y,z; u8 width8 (units*8, cap 255); u8 spawnProb (0-15);
+ u8 flags (bit0 water, bit1 switchedOff, bit2 deadEnd);
+ u8 nlinks; u16 firstLink; u16 pad }
+ nlinks * u32 ref: (rx<<24)|(ry<<16)|localIdx - target tile + local index
 Runtime resolves cross-tile refs against loaded tiles (miss = link ignored).
 
 Usage: python ped_path_bake.py <chunks_dir_with_regions.bin> [out_dir=same]

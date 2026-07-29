@@ -4,8 +4,8 @@ model's DFF (RW plugin chunk 0x0253F2F8 in a GEOMETRY EXTENSION). Read-only; reu
 gvcslib.sa_dff for the RW chunk tree.
 
 Returns a list of dicts per type-0 entry:
-  pos(x,y,z local), color(r,g,b,a), farClip, ptRange, coronaSize, shadowSize,
-  showMode, flags (= flags1 | flags2<<8; bit5 AtDay, bit6 AtNight, ...).
+ pos(x,y,z local), color(r,g,b,a), farClip, ptRange, coronaSize, shadowSize,
+ showMode, flags (= flags1 | flags2<<8; bit5 AtDay, bit6 AtNight, ...).
 """
 import os
 import struct, sys

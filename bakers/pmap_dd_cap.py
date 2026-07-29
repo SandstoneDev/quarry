@@ -2,7 +2,7 @@
 """pmap_dd_cap - CAP (lower) the per-model draw distance of OPAQUE, non-landmark
 models IN PLACE, for BOTH v2 (raw) and v3 (lz4-streamed) .pmap tiles.
 
-The mirror image of pmap_dd_bump.py (which RAISES alpha-model dd to a floor).  This
+The mirror image of pmap_dd_bump.py (which RAISES alpha-model dd to a floor). This
 tool LOWERS the draw distance of opaque, non-landmark models to a cap so fewer distant
 instances survive the renderer's frustum+distance test (their LODxxx proxy is meant to
 cover them past the cap) - aimed at the dense downtown belt where the frame is bound by
@@ -13,31 +13,31 @@ Why this is safe on v3 (lz4) without decompressing anything
 -----------------------------------------------------------
 draw_dist lives in the RESIDENT model table - the engine culls by draw_dist BEFORE it
 streams a model's geometry, so the whole model table sits in the always-resident prefix
-[0, vertex_off).  tools/pmap_lz4.py copies "header..grid+cell tables..instances" (the
+[0, vertex_off). tools/pmap_lz4.py copies "header..grid+cell tables..instances" (the
 resident prefix) VERBATIM into v3 and only replaces the vertex/index/texel/clut pools
-with compressed blobs (which begin at vertex_off).  header.model_off is an ABSOLUTE file
+with compressed blobs (which begin at vertex_off). header.model_off is an ABSOLUTE file
 offset already shifted by the v3 writer, so it points straight at the model table in both
-v2 and v3.  draw_dist is a leaf field (no dependent offsets), so we patch its 4 bytes in
+v2 and v3. draw_dist is a leaf field (no dependent offsets), so we patch its 4 bytes in
 place - file length is unchanged and the compressed blobs / trailing comp u32s are never
 touched.
 
 Per model, cap iff ALL of:
-  * OPAQUE       - NO submesh references an alpha texture.  Alpha is detected exactly as
-                    pmap_dd_bump does: a texture is alpha when (num_levels >> 8) & 3 != 0.
-                    (opaque = the inverse over every submesh of the model.)
-  * NOT landmark - bound_radius < LANDMARK_R (default 60.0).  Big skyline buildings keep
-                    their long draw distance so downtown still reads at range.
-  * draw_dist > CAP (default 320.0).
-then draw_dist := CAP.  Alpha models (foliage - they rely on the pmap_dd_bump floor),
+ * OPAQUE - NO submesh references an alpha texture. Alpha is detected exactly as
+ pmap_dd_bump does: a texture is alpha when (num_levels >> 8) & 3 != 0.
+ (opaque = the inverse over every submesh of the model.)
+ * NOT landmark - bound_radius < LANDMARK_R (default 60.0). Big skyline buildings keep
+ their long draw distance so downtown still reads at range.
+ * draw_dist > CAP (default 320.0).
+then draw_dist := CAP. Alpha models (foliage - they rely on the pmap_dd_bump floor),
 landmarks, and already-short models are left untouched.
 
 Every file touched is BACKED UP first (to the scratchpad dir below) so the change is
 fully reversible; the first backup of a file is preserved across re-runs.
 
 Usage:
-  pmap_dd_cap.py <region_dir-or-file> [cap=320] [landmark_r=60] [--dry-run]
+ pmap_dd_cap.py <region_dir-or-file> [cap=320] [landmark_r=60] [--dry-run]
 
-  --dry-run : analyse + print what WOULD be capped, write nothing (no backup, no patch).
+ --dry-run : analyse + print what WOULD be capped, write nothing (no backup, no patch).
 """
 import glob
 import os
@@ -55,15 +55,15 @@ MODEL_STRIDE   = 32              # first_submesh,submesh_count,scale,cx,cy,cz,bo
 SUBMESH_STRIDE = 20              # texture(i32),vfirst,vcount,ifirst,icount
 TEX_STRIDE     = 32              # w,h,format,texel_first,texel_bytes,bufw,clut_first,clut_entries,num_levels
 BR_OFF  = 24                     # bound_radius, within a MODEL record
-DD_OFF  = 28                     # draw_dist,    within a MODEL record
-NL_OFF  = 28                     # num_levels,   within a TEXTURE record
+DD_OFF  = 28                     # draw_dist, within a MODEL record
+NL_OFF  = 28                     # num_levels, within a TEXTURE record
 SMTEX_OFF = 0                    # texture(i32), within a SUBMESH record
 
 
 def _read_header(data):
-    """Return the header fields we need.  Field offsets are identical for v2/v3/v4 (v3/v4
-    just carry extra u32s AFTER this fixed prefix, and shift the *_off values - which are
-    absolute - to point past the grown header)."""
+    """Return the header fields we need. Field offsets are identical for v2/v3/v4 (v3/v4
+ just carry extra u32s AFTER this fixed prefix, and shift the *_off values - which are
+ absolute - to point past the grown header)."""
     magic, version, file_size = struct.unpack_from("<III", data, 0)
     model_count, model_off     = struct.unpack_from("<II", data, 0x0C)
     submesh_count, submesh_off = struct.unpack_from("<II", data, 0x14)
@@ -116,7 +116,7 @@ def _backup(path):
 
 def _plan(data, h, cap, lr):
     """Return (to_cap, opaque_total, landmarks_kept) where to_cap is a list of
-    (model_index, old_dd, bound_radius) for opaque non-landmark models with dd>cap."""
+ (model_index, old_dd, bound_radius) for opaque non-landmark models with dd>cap."""
     tex_alpha = _alpha_flags(data, h)
     sm_tex = _submesh_tex(data, h)
     to_cap = []
@@ -191,7 +191,7 @@ def cap_file(path, cap, lr, dry):
 
 def _verify_file(path, cap, lr, h_before, to_cap):
     """Re-read the patched file and confirm: version unchanged, file size unchanged, every
-    opaque non-landmark model now has dd<=cap, and NOTHING outside the cap set moved."""
+ opaque non-landmark model now has dd<=cap, and NOTHING outside the cap set moved."""
     data = bytearray(open(path, "rb").read())
     if len(data) != h_before["file_size"] and len(data) != h_before["vertex_off"] + (
             h_before["file_size"] - h_before["vertex_off"]):

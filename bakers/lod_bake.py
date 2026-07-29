@@ -5,11 +5,11 @@ The .pmap drops the IPL `lod` field: sa_ipl.load_all() flattens all IPLs into on
 list, but `lod` is a LOCAL index into the same IPL file's instance list, so once
 flattened it can't be resolved. We recover it here WITHOUT re-baking the .pmap:
 
-  1. read the shipped .pmap instance array (final, cell-sorted order) and key each
-     instance by (pos float32, quat s16) -> its global instance index.
-  2. re-read every IPL PER FILE; within each file resolve inst.lod -> the LOD
-     instance, and record key(inst) -> key(lod_inst).
-  3. for each .pmap instance, look up its LOD key, then that key's .pmap index.
+ 1. read the shipped .pmap instance array (final, cell-sorted order) and key each
+ instance by (pos float32, quat s16) -> its global instance index.
+ 2. re-read every IPL PER FILE; within each file resolve inst.lod -> the LOD
+ instance, and record key(inst) -> key(lod_inst).
+ 3. for each .pmap instance, look up its LOD key, then that key's .pmap index.
 
 The key is the exact on-disk bytes psp_scene writes (pos = verbatim float32, quat =
 round(c*32767) clamped s16), so the match is byte-exact. Instances whose LOD lies
@@ -17,7 +17,7 @@ outside the baked region get -1 (no proxy -> the detail simply vanishes far out,
 as on the real SA map edge).
 
 lod.bin layout (little-endian, aligned 1:1 to PmapInstance[]):
-    u32 magic 'PLOD'(0x444F4C50), u32 version(1), u32 count, int32 lod_idx[count]
+ u32 magic 'PLOD'(0x444F4C50), u32 version(1), u32 count, int32 lod_idx[count]
 """
 import os, struct, sys
 
@@ -28,7 +28,7 @@ from gvcslib.sa_img import SaImg
 
 PMAP = ""
 OUT  = ""
-# IPL placement source. The .pmap placements are float32-identical to one of these
+# IPL placement source. The.pmap placements are float32-identical to one of these
 # roots; the tool reports the match rate so we can confirm/switch.
 # SA_ROOT env override first (the Quarry converter's user-disc extract): the
 # region baker picks the root with the best link match, and instances exported
@@ -51,7 +51,7 @@ def ipl_key(inst, lodset):
     # low-poly LOD model is usually placed at the SAME pos+rot as the detail it
     # replaces, so pos+quat alone collides a detail with its own LOD. The baker
     # marks the LOD with interior=1 by the very same DFF-name test, so the byte
-    # matches the .pmap side exactly.
+    # matches the.pmap side exactly.
     is_lod = 1 if inst.model_id in lodset else 0
     return struct.pack('<3f', *inst.pos) + _qpack(inst.rot) + bytes((is_lod,))
 
@@ -73,7 +73,7 @@ def load_pmap_keys():
 
 def load_ipl_links(root):
     """key(inst) -> key(lod_inst) for every IPL instance with a valid lod, plus the
-    SET of all instance keys (to measure how well this root matches the .pmap)."""
+ SET of all instance keys (to measure how well this root matches the .pmap)."""
     maps = None
     for cand in ("data/maps", "DATA/MAPS"):
         p = os.path.join(root, cand)

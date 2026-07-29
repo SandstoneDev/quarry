@@ -4,13 +4,13 @@ port's playable hero (bind-pose geometry; skeletal anim via IFP is a later stage
 Port-side COPY of gvcslib/work/char_bake.py (gvcslib is READ-ONLY; we never run
 from / write into it). Reads the gvcslib codecs + the PC SA install, writes
 char.bin into this project. Usage:
-    python tools/char_bake.py [ped] [out.bin]
-    (ped default 'cj' -> the player model; falls back is the caller's job)
+ python tools/char_bake.py [ped] [out.bin]
+ (ped default 'cj' -> the player model; falls back is the caller's job)
 
 char.bin layout (little-endian):
-  'CHAR' | scale f32 | center 3*f32 | min_z f32 | radius f32 | nprims u32
-  per prim: tw,th u16 | num_levels u16 (lo=mips, hi=alpha_mode) | clut_entries u16
-            vbytes,ibytes u32 | texel_len,clut_len u32 | <verts><idx><texels><clut>
+ 'CHAR' | scale f32 | center 3*f32 | min_z f32 | radius f32 | nprims u32
+ per prim: tw,th u16 | num_levels u16 (lo=mips, hi=alpha_mode) | clut_entries u16
+ vbytes,ibytes u32 | texel_len,clut_len u32 | <verts><idx><texels><clut>
 """
 import math
 import os
@@ -32,7 +32,7 @@ OUT_DEFAULT = ""
 
 def _decode_txd(raw):
     """Pick the TXD codec by RW device id (26: u16 deviceId): 6 = PS2-native (sa_txd),
-    else D3D8/9 (sa_txd_d3d9). One char_bake serves the PS2 disc and the PC dev loop."""
+ else D3D8/9 (sa_txd_d3d9). One char_bake serves the PS2 disc and the PC dev loop."""
     raw = bytes(raw)
     devid = struct.unpack_from("<H", raw, 26)[0] if len(raw) >= 28 else 0
     prim, alt = (sa_txd, sa_txd_d3d9) if devid == 6 else (sa_txd_d3d9, sa_txd)

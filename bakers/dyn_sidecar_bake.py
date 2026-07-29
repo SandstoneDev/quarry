@@ -6,7 +6,7 @@ so the runtime can't look props up in dynobj.bin directly. This tool re-reads
 every region_X_Y.pmap, matches instances BY POSITION against the SA IPL
 placements of dynamic models (object.dat names from dyn_names.txt), and writes
 
-  region_X_Y.dyn:  'DYNS' u16 count u16 pad, then {u16 instIdx, u16 entryIdx}[]
+ region_X_Y.dyn: 'DYNS' u16 count u16 pad, then {u16 instIdx, u16 entryIdx}[]
 
 entryIdx indexes the dynobj.bin entry table. Positions are unique per prop
 (the same rounding key col_bake uses to dedupe), so the match is exact.
@@ -28,7 +28,7 @@ CHUNKS = ""
 
 def dyn_entry_table():
     """Rebuild the SAME entry list/order dynobj_bake.py wrote, returning
-    name -> entryIdx. Must mirror dynobj_bake.main() exactly."""
+ name -> entryIdx. Must mirror dynobj_bake.main() exactly."""
     import sa_col
     rows = parse_object_dat()
     dyn = {n: r for n, r in rows.items()
@@ -69,7 +69,7 @@ def dyn_entry_table():
 
 def sa_dyn_positions(name_entry):
     """{(rx, ry, rz rounded 0.1): entryIdx} for every IPL placement of a dynamic
-    model (text IPLs by name + binary stream IPLs by id->name)."""
+ model (text IPLs by name + binary stream IPLs by id->name)."""
     id2name = load_ide_id2name()
     import sa_col
     img = sa_col.ImgArchive(sa_col.IMG)
@@ -129,7 +129,7 @@ def pmap_instances(path):
     """Yield (instIdx, x, y, z) from a v2/v3 .pmap (header layout in pmap.h)."""
     blob = open(path, "rb").read()
     # header: magic,ver,size, model_cnt,model_off, submesh_cnt,submesh_off,
-    #         texture_cnt,texture_off, instance_cnt(36), instance_off(40)
+    # texture_cnt,texture_off, instance_cnt(36), instance_off(40)
     inst_count = struct.unpack_from("<I", blob, 36)[0]
     inst_off = struct.unpack_from("<I", blob, 40)[0]
     for i in range(inst_count):

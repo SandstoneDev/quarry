@@ -11,8 +11,8 @@ from ps2_uv_tess import cap_uv_span, UV_ONE, UV_EDGE_MAX, VFMT   # noqa: E402
 
 def pack_vert(u, v, colour, x, y, z):
     """Pack one vertex. UVs go in as RAW 16 bits, so an authored (signed,
-    centred) coordinate is stored as its two's-complement pattern - exactly
-    what the packer upstream of us writes and what the GE reads back unsigned."""
+ centred) coordinate is stored as its two's-complement pattern - exactly
+ what the packer upstream of us writes and what the GE reads back unsigned."""
     return struct.pack(VFMT, u & 0xFFFF, v & 0xFFFF, colour, x, y, z)
 
 
@@ -22,7 +22,7 @@ def uv_signed(w):
 
 class Submesh(object):
     """Stands in for the scene submesh cap_uv_span rebuilds: it only needs the
-    four attributes the real one is constructed with."""
+ four attributes the real one is constructed with."""
 
     def __init__(self, texture, vertex_bytes, index_bytes, uvscroll=None):
         self.texture = texture
@@ -38,13 +38,13 @@ class Model(object):
 
 def quad(u_tiles, v_tiles=1.0, colour=0x7FFF, centred=True):
     """One texture-space quad (2 triangles, 4 shared vertices) tiling u_tiles x
-    v_tiles. The two triangles share the diagonal, so a crack-free subdivision
-    must give that edge a single midpoint.
+ v_tiles. The two triangles share the diagonal, so a crack-free subdivision
+ must give that edge a single midpoint.
 
-    Centred by default because that is how the source authors these: the UVs sit
-    in a symmetric band around zero, which is exactly what makes them straddle
-    the GE's unsigned window seam. `centred=False` gives a quad already inside
-    tile 0, i.e. one that needs no work at all."""
+ Centred by default because that is how the source authors these: the UVs sit
+ in a symmetric band around zero, which is exactly what makes them straddle
+ the GE's unsigned window seam. `centred=False` gives a quad already inside
+ tile 0, i.e. one that needs no work at all."""
     du = int(u_tiles * UV_ONE)
     dv = int(v_tiles * UV_ONE)
     u0, v0 = (-du // 2, -dv // 2) if centred else (0, 0)
@@ -93,8 +93,8 @@ def test_wide_span_is_capped():
 
 def test_shared_edge_gets_one_midpoint():
     """Both triangles share the diagonal, so a crack-free split must reuse its
-    midpoint. If every triangle got private vertices the count would be 3x the
-    triangle count - that is the T-junction bug this guards against."""
+ midpoint. If every triangle got private vertices the count would be 3x the
+ triangle count - that is the T-junction bug this guards against."""
     # 7 tiles inside cell 0: wide enough to subdivide, narrow enough to stay one
     # bucket, so the vertex count reflects sharing alone.
     m = Model([quad(7.0, centred=False)])
@@ -106,8 +106,8 @@ def test_shared_edge_gets_one_midpoint():
 
 def test_widest_representable_span_is_handled():
     """The worst case the packed s16 domain can express is the full range,
-    65535 raw = exactly 16 tiles. Two passes must bring it under the cap without
-    the geometry blowing up."""
+ 65535 raw = exactly 16 tiles. Two passes must bring it under the cap without
+ the geometry blowing up."""
     verts = [(0, 0, 0x7FFF, 0, 0, 0),
              (32767, 0, 0x7FFF, 1000, 0, 0),
              (-32768, 32767, 0x7FFF, 1000, 1000, 0)]     # span 65535 raw = 16 tiles
@@ -132,8 +132,8 @@ def test_compliant_mesh_is_left_alone():
 
 def test_centred_mesh_is_moved_off_the_window_seam():
     """A 1-tile quad centred on zero is small enough to need no subdivision, but
-    half of it reads as ~15.5 tiles in the GE's unsigned view - it straddles the
-    seam, which is the striped/stretched artefact. It must come out non-negative."""
+ half of it reads as ~15.5 tiles in the GE's unsigned view - it straddles the
+ seam, which is the striped/stretched artefact. It must come out non-negative."""
     m = Model([quad(1.0)])
     st = cap_uv_span([m], verbose=False)
     assert st["tris_after"] == 2, st                  # no subdivision needed

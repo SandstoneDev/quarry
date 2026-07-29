@@ -7,27 +7,27 @@ the same art at its native tier (93.6% are <=128px 4-bit CLUT = PSP T4 1:1,
 authored 16-colour palettes, no quantization needed).
 
 Per region:
-  1. decode every deployed texture (T4/T8 level0) -> perceptual hash
-  2. match against the PC fingerprint DB (tex_fingerprint_db.py) -> (txd, name)
-  3. pull the SAME (txd, name) from the PS2 GTA3.IMG / GTA_INT.IMG via
-     gvcslib.sa_txd (validated librw transfer-stream deswizzle; every PSMT4/8
-     texture in the archive is GS-swizzled)
-  4. content-gate (corr + total-variation vs the deployed motif - guards
-     against wrong-NAME matches; the decode itself is trusted)
-  5. rebuild the exact indexed form from unique colours (<=16 -> T4,
-     <=256 -> T8), swizzle for the PSP GE, splice at NATIVE size (cap 256)
-  6. unmatched / rejected / oversized textures keep the deployed version
+ 1. decode every deployed texture (T4/T8 level0) -> perceptual hash
+ 2. match against the PC fingerprint DB (tex_fingerprint_db.py) -> (txd, name)
+ 3. pull the SAME (txd, name) from the PS2 GTA3.IMG / GTA_INT.IMG via
+ gvcslib.sa_txd (validated librw transfer-stream deswizzle; every PSMT4/8
+ texture in the archive is GS-swizzled)
+ 4. content-gate (corr + total-variation vs the deployed motif - guards
+ against wrong-NAME matches; the decode itself is trusted)
+ 5. rebuild the exact indexed form from unique colours (<=16 -> T4,
+ <=256 -> T8), swizzle for the PSP GE, splice at NATIVE size (cap 256)
+ 6. unmatched / rejected / oversized textures keep the deployed version
 
 UVs are untouched (resolution-independent). alpha_mode byte (num_levels byte 1)
 is preserved from the deployed entry. Splice machinery = pmap_tex_t4from128.
 
 Usage (single):
-  pmap_tex_ps2native.py <region.pmap> <out.pmap> --db <fp_prefix>
-      --ps2img <GTA3.IMG> [--ps2int <GTA_INT.IMG>] [--cap 256] [--hamming 12]
-      [--report]
+ pmap_tex_ps2native.py <region.pmap> <out.pmap> --db <fp_prefix>
+ --ps2img <GTA3.IMG> [--ps2int <GTA_INT.IMG>] [--cap 256] [--hamming 12]
+ [--report]
 Usage (batch, in-place, shared decode caches across files):
-  pmap_tex_ps2native.py <file-or-dir> [more ...] --inplace --backup <DIR>
-      --db <fp_prefix> --ps2img <GTA3.IMG> [--ps2int <GTA_INT.IMG>]
+ pmap_tex_ps2native.py <file-or-dir> [more ...] --inplace --backup <DIR>
+ --db <fp_prefix> --ps2img <GTA3.IMG> [--ps2int <GTA_INT.IMG>]
 """
 import json
 import os
@@ -87,9 +87,9 @@ def decode_deployed(blob, h20, t):
 def encode_indexed(rgba, force_t8=False):
     """RGBA (h,w,4) with <=256 unique colours -> (fmt, swizzled, clut, bufw, ce).
 
-    force_t8 keeps a <=16-colour image out of T4 for the runtime loaders that bind
-    GU_PSM_T8 unconditionally and would read 4bpp texels as 8bpp (grass.bin).
-    """
+ force_t8 keeps a <=16-colour image out of T4 for the runtime loaders that bind
+ GU_PSM_T8 unconditionally and would read 4bpp texels as 8bpp (grass.bin).
+ """
     h, w = rgba.shape[:2]
     flat = rgba.reshape(-1, 4)
     colors, inv = np.unique(flat.view(np.uint32).reshape(-1), return_inverse=True)
@@ -138,7 +138,7 @@ def _gray32(rgba_bytes, cw, ch):
 
 def _tv(rgba_bytes, cw, ch):
     """Mean per-pixel gradient at NATIVE res: a scrambled decode has several
-    times the deployed texture's energy; legit finer art ~1-2x."""
+ times the deployed texture's energy; legit finer art ~1-2x."""
     im = _composite(rgba_bytes, cw, ch)
     g = np.asarray(im.convert("L"), np.float32)
     return float((np.abs(np.diff(g, axis=0)).mean()

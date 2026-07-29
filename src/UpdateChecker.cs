@@ -17,14 +17,14 @@ public static class UpdateChecker
     {
         try
         {
-            if (!http.DefaultRequestHeaders.UserAgent.Any)
+            if (!http.DefaultRequestHeaders.UserAgent.Any())
                 http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Quarry", current));
             using var resp = await http.GetAsync(Api, ct);
             if (!resp.IsSuccessStatusCode) return new(false, true, current, null);
             using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
             var root = doc.RootElement;
-            string latest = root.TryGetProperty("tag_name", out var t) ? (t.GetString ?? current) : current;
-            string? url = root.TryGetProperty("html_url", out var u) ? u.GetString : null;
+            string latest = root.TryGetProperty("tag_name", out var t) ? (t.GetString() ?? current) : current;
+            string? url = root.TryGetProperty("html_url", out var u) ? u.GetString() : null;
             // "update available" ONLY when the release is NEWER than us - compare the numeric
             // build (v767 vs v766), so being ahead of / equal to the latest release reads as up-to-date.
             int cn = VerNum(current), ln = VerNum(latest);

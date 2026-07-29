@@ -16,7 +16,7 @@ re-reads each region_X_Y.pmap, matches instances BY POSITION against the SA IPL
 placements of wet_road models, collects the tile-local MODEL indices those
 instances use, and writes
 
-  region_X_Y.road:  'ROAD' u16 modelCount u16 pad, then u16 localModelIdx[]
+ region_X_Y.road: 'ROAD' u16 modelCount u16 pad, then u16 localModelIdx[]
 
 The runtime ORs a road bit into that model's per-model flag byte
 (Streaming.build_model_flags) and the renderer biases those models' opaque draws.
@@ -36,7 +36,7 @@ CHUNKS = ""
 
 def wetroad_positions():
     """{(x,y,z rounded 0.1)} for every IPL placement of a wet_road model (IDE
-    flag bit 0). sa_source handles both text + binary IPLs."""
+ flag bit 0). sa_source handles both text + binary IPLs."""
     defs = sa_source.load_defs()
     img = sa_source.open_img()
     inst = sa_source.load_instances(defs, img)

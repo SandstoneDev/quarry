@@ -44,7 +44,7 @@ from pmap_tex_ps2native import decode_deployed, encode_indexed, _alpha_class
 
 def encode_indexed_q(arr):
     """encode_indexed with a median-cut quantise fallback: photo art with >256
-    unique colours (encode_indexed returns None) gets palettised to 256 first."""
+ unique colours (encode_indexed returns None) gets palettised to 256 first."""
     enc = encode_indexed(arr.copy())
     if enc is not None:
         return enc

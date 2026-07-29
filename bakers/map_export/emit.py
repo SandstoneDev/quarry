@@ -31,7 +31,7 @@ def emit_regions(models, textures, instances, out_dir, tile=450.0, cell=400.0):
 
 def budget_report(out_dir, idx_cap=92 * 1024):
     """Index-area (= header+tables before the pools) per tile vs the runtime
-    idx pool cap. psp_scene v2 header word 12 = vertex pool offset."""
+ idx pool cap. psp_scene v2 header word 12 = vertex pool offset."""
     worst = []
     for p in sorted(glob.glob(os.path.join(out_dir, "region_*.pmap"))):
         with open(p, "rb") as f:
@@ -50,15 +50,15 @@ def budget_report(out_dir, idx_cap=92 * 1024):
 
 def write_lod_files(out_dir, scene_instances, links):
     """Per-tile region_X_Y.lod straight from the exporter's OWN links (global
-    scene indices), replacing the lod_bake_regions key-matching pass. That pass
-    matched pos+quat+is_lod keys against SA IPLs re-parsed with different LOD
-    rules - co-located detail/proxy pairs (the Grove bridge) collided and the
-    DETAIL inherited the proxy's inbound refs, so the renderer's mutual
-    exclusion skipped the bridge standalone (build-197 pilot bug).
+ scene indices), replacing the lod_bake_regions key-matching pass. That pass
+ matched pos+quat+is_lod keys against SA IPLs re-parsed with different LOD
+ rules - co-located detail/proxy pairs (the Grove bridge) collided and the
+ DETAIL inherited the proxy's inbound refs, so the renderer's mutual
+ exclusion skipped the bridge standalone (build-197 pilot bug).
 
-    Both sides of the match here come from the same writer: the on-disk
-    instance record (write_scene cell-sorts them) is looked up by the exact
-    pos/quat/interior bytes we handed psp_scene."""
+ Both sides of the match here come from the same writer: the on-disk
+ instance record (write_scene cell-sorts them) is looked up by the exact
+ pos/quat/interior bytes we handed psp_scene."""
     from gvcslib.psp_scene import _q15
     import glob
 

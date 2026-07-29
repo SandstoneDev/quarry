@@ -3,7 +3,7 @@
 PC SA DFFs store *platform-independent* RW geometry (the native bit
 rpGEOMETRYNATIVE 0x01000000 is CLEAR): plain f32 positions/UVs, RwRGBA prelit,
 optional f32 normals, a triangle list in the GEOMETRY STRUCT, and a Bin-Mesh PLG
-(0x050E) that splits the triangles per material as index lists.  This is unlike
+(0x050E) that splits the triangles per material as index lists. This is unlike
 the PS2-native DMA/VIF path in sa_dff; it is the format the PC decomp renders.
 
 Output reuses gvcslib.sa_dff.SaModel / SaMesh so psp_mesh.pack_model is unchanged:

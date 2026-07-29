@@ -3,25 +3,25 @@
 
 The streaming loader (platform_psp/pmap.c) reads each model's geometry blob
 (verts||indices) and each texture's blob (texels||clut) on demand off the Memory
-Stick.  v2 stores those pools raw; v3 stores them as per-model / per-texture LZ4
+Stick. v2 stores those pools raw; v3 stores them as per-model / per-texture LZ4
 blocks, so the disk read is smaller (faster streaming, shorter strmq backlog) and
 the bg thread inflates each blob into the cache buffer.
 
 v3 = v2 with:
-  * header version 3, +3 u32 at the end: comp_flag, comp_model_off, comp_tex_off
-  * the resident prefix (header..grid+cell tables..instances) copied verbatim,
-    every header *_off shifted by the 12-byte header growth
-  * two comp tables in the resident prefix: PmapComp{u32 off; u32 csize}
-    [model_count] and [texture_count]; off = absolute file offset of the blob
-  * the raw vertex/index/texel/clut pools REPLACED by the concatenated LZ4 blobs
-  * vertex_off = start of the compressed-blob region (== end of resident prefix)
+ * header version 3, +3 u32 at the end: comp_flag, comp_model_off, comp_tex_off
+ * the resident prefix (header..grid+cell tables..instances) copied verbatim,
+ every header *_off shifted by the 12-byte header growth
+ * two comp tables in the resident prefix: PmapComp{u32 off; u32 csize}
+ [model_count] and [texture_count]; off = absolute file offset of the blob
+ * the raw vertex/index/texel/clut pools REPLACED by the concatenated LZ4 blobs
+ * vertex_off = start of the compressed-blob region (== end of resident prefix)
 
 Decompressed sizes are NOT stored: the loader recomputes them exactly as v2 did
 (model span from its submeshes; texture from texel_bytes + clut_entries*4).
 
 Usage:
-  python pmap_lz4.py <in_v2.pmap> <out_v3.pmap>
-  python pmap_lz4.py --dir <data_dir>        # compress every region_*.pmap in place (.pmap)
+ python pmap_lz4.py <in_v2.pmap> <out_v3.pmap>
+ python pmap_lz4.py --dir <data_dir> # compress every region_*.pmap in place (.pmap)
 """
 import os
 import sys

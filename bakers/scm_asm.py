@@ -3,23 +3,23 @@
 
 Usage: python scm_asm.py in.scm.txt out.scm
 Directives:
-  GLOBALS <n>     declare n int32 global slots (sizes the 's' chunk)
-  MAIN            begin the MAIN thread (emits SCRIPT_NAME "MAIN")
-  :label          define a label
+ GLOBALS <n> declare n int32 global slots (sizes the 's' chunk)
+ MAIN begin the MAIN thread (emits SCRIPT_NAME "MAIN")
+ :label define a label
 Operands:
-  $N   global int slot N   -> tag 2, byte offset GLOBAL_BASE + N*4
-  %N   local slot N        -> tag 3, index N
-  @lbl address of label    -> tag 1, absolute ScriptSpace offset
-  123  integer             -> smallest of tag 4/5/1
-  1.5  float               -> tag 6
-  "s"  short string        -> tag 9, 8 bytes null-padded/truncated
+ $N global int slot N -> tag 2, byte offset GLOBAL_BASE + N*4
+ %N local slot N -> tag 3, index N
+ @lbl address of label -> tag 1, absolute ScriptSpace offset
+ 123 integer -> smallest of tag 4/5/1
+ 1.5 float -> tag 6
+ "s" short string -> tag 9, 8 bytes null-padded/truncated
 """
 import struct, sys
 from scm_opcodes import (OPCODES, TAG_INT32, TAG_GVAR, TAG_LVAR, TAG_INT8,
                          TAG_INT16, TAG_FLOAT, TAG_STR8, GLOBAL_BASE)
 
 def _tokenize(line):
-    # split respecting quoted strings; strip ; and # comments
+    # split respecting quoted strings; strip; and # comments
     out, i, n = [], 0, len(line)
     while i < n:
         c = line[i]

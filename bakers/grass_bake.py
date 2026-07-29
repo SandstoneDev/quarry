@@ -9,9 +9,9 @@ ColModel carries grass faces contributes world-space triangles, clipped into
 the production region grid and written as region_X_Y.grass sidecars.
 
 Format (little-endian):
-  u32 magic 'GRS1' (0x31535247), u32 tri_count
-  tri (20B): s16 x1,y1,z1,x2,y2,z2,x3,y3,z3 (world * 10, i.e. 0.1u quant)
-             u8 surface (9..14), u8 pad
+ u32 magic 'GRS1' (0x31535247), u32 tri_count
+ tri (20B): s16 x1,y1,z1,x2,y2,z2,x3,y3,z3 (world * 10, i.e. 0.1u quant)
+ u8 surface (9..14), u8 pad
 Runtime cost: ~KBs-100KB per region, loaded with the region like .nightd.
 
 Usage: grass_bake.py <chunks_dir> [--only region_12_2]

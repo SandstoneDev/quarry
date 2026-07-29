@@ -4,12 +4,12 @@ PSP engine fopen-uploads like font.bin). Port-side wrapper over the READ-ONLY
 gvcslib codecs.
 
 clouds.bin layout (little-endian):
-  'CLDS'                4
-  count                 u32
-  per texture:
-    name                16 bytes (zero-padded)
-    w, h                2x u16
-    w*h*4 RGBA8888 bytes (row-major)
+ 'CLDS' 4
+ count u32
+ per texture:
+ name 16 bytes (zero-padded)
+ w, h 2x u16
+ w*h*4 RGBA8888 bytes (row-major)
 
 We bake cloud1 (SA's gpCloudTex low-cloud puff, drawn as individual ring sprites),
 cloudhigh (the high streaks) and coronamoon (the night moon disc).

@@ -7,13 +7,13 @@ rows; CAEAmbienceTrackManager::UpdateAmbienceTrackAndVolume maps zoneId->track,
 -- exactly what the port's interiors lack.
 
 This bake:
-  1) parses Audiozon.ipl auzo rows (name, zoneId),
-  2) maps zoneId -> stream track via the 0x4D6E60 switch (radio zones skipped),
-  3) extracts each unique track from AUDIO/STREAMS via stream_extract,
-  4) transcodes to mono 22050 Hz OGG (ffmpeg; ambience quality, small files),
-  5) writes data/amb/amb_t<track>.ogg + ambzones.bin ('AMBZ' u16 n; n x
-     { char name[16]; u16 trackId }) - the runtime matches its interior name
-     against zone names case-insensitively.
+ 1) parses Audiozon.ipl auzo rows (name, zoneId),
+ 2) maps zoneId -> stream track via the 0x4D6E60 switch (radio zones skipped),
+ 3) extracts each unique track from AUDIO/STREAMS via stream_extract,
+ 4) transcodes to mono 22050 Hz OGG (ffmpeg; ambience quality, small files),
+ 5) writes data/amb/amb_t<track>.ogg + ambzones.bin ('AMBZ' u16 n; n x
+ { char name[16]; u16 trackId }) - the runtime matches its interior name
+ against zone names case-insensitively.
 """
 import os
 import struct
@@ -22,7 +22,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import stream_extract
-# NB: imageio_ffmpeg is imported lazily inside main() so a missing ffmpeg SOFT-SKIPS the
+# NB: imageio_ffmpeg is imported lazily inside main so a missing ffmpeg SOFT-SKIPS the
 # audio transcode instead of crashing at import (the ambzones map is still written).
 
 # SA_ROOT env override: Quarry points this at the extracted disc. Default = PC dev loop.
@@ -63,8 +63,8 @@ def parse_auzo():
 
 def main(out_dir=None):
     """Bake venue ambience. out_dir (Quarry) -> <out_dir>/audio/amb/; else the dev list.
-    NON-FATAL: always returns 0 - a missing ffmpeg or non-OGG (PS2 VAG) stream soft-skips
-    the audio while still writing the stdlib-only ambzones.bin map."""
+ NON-FATAL: always returns 0 - a missing ffmpeg or non-OGG (PS2 VAG) stream soft-skips
+ the audio while still writing the stdlib-only ambzones.bin map."""
     if not os.path.isfile(AUZO):
         print("  ambience SKIPPED: Audiozon.ipl not found at", AUZO)
         return 0

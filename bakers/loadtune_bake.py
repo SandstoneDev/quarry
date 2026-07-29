@@ -9,7 +9,7 @@ sounds, interleaves each pair into one stereo 16-bit WAV, and deploys them; the
 engine (LoadMusic.c) streams a random one during the load.
 
 Usage: python tools/loadtune_bake.py [outDataDir ...]
-       (no args = deploy to F: + PPSSPP memstick + deploy_psp data dirs)
+ (no args = deploy to F: + PPSSPP memstick + deploy_psp data dirs)
 """
 import os
 import struct
@@ -35,7 +35,7 @@ SRC_RATES = (44100,)   # b375: plain sceAudio channel (SRC dropped engine-wide) 
 
 def resample_pcm16(mono, src, dst):
     """linear-interp mono PCM16 bytes src->dst rate (bank tunes are 28000 Hz,
-    which sceAudioSRC does NOT accept - snap to the next legal rate)."""
+ which sceAudioSRC does NOT accept - snap to the next legal rate)."""
     import array
     a = array.array("h"); a.frombytes(mono[:len(mono) & ~1])
     n = len(a)

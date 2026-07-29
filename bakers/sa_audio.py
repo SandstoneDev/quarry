@@ -10,20 +10,20 @@ sample, and transcodes PCM->VAG here (the read-only `gvcslib.vag` decoder valida
 On-disk formats (verified on real PC 1.0 US bytes, cross-checked vs the reference notes
 `AEBankLoader`/`AEBankSlot`):
 
-  BankLkup.dat  - AEBankLookup[710], 0xC each:
-      u8 PakFileNo; u8 pad[3](=0xCC); u32 FileOffset(BYTES into pak); u32 NumBytes
-  PakFiles.dat  - AEPakLookup[9], 0x34 each:
-      char BaseFilename[12]; u32 FileCopyLSNs[10]   (0=FEET 1=GENRL 2=PAIN_A 3=SCRIPT 4..8=SPC)
-  AUDIO/SFX/<PAK> bank blob @ (FileOffset, NumBytes):
-      AEAudioStream header (0x12C4) = { i16 NumSounds; i16 pad; SoundEntry[400] } + 16-bit PCM body
-      SoundEntry (0xC) = { u32 BankOffsetBytes(into body); u32 LoopStartOffset(samples,0xFFFFFFFF=none);
-                           u16 SampleRateHz; i16 Headroom }
-      sample[i] length = SoundEntry[i+1].BankOffsetBytes - SoundEntry[i].BankOffsetBytes
-                         (last = bodyLen - SoundEntry[i].BankOffsetBytes)
+ BankLkup.dat - AEBankLookup[710], 0xC each:
+ u8 PakFileNo; u8 pad[3](=0xCC); u32 FileOffset(BYTES into pak); u32 NumBytes
+ PakFiles.dat - AEPakLookup[9], 0x34 each:
+ char BaseFilename[12]; u32 FileCopyLSNs[10] (0=FEET 1=GENRL 2=PAIN_A 3=SCRIPT 4..8=SPC)
+ AUDIO/SFX/<PAK> bank blob @ (FileOffset, NumBytes):
+ AEAudioStream header (0x12C4) = { i16 NumSounds; i16 pad; SoundEntry[400] } + 16-bit PCM body
+ SoundEntry (0xC) = { u32 BankOffsetBytes(into body); u32 LoopStartOffset(samples,0xFFFFFFFF=none);
+ u16 SampleRateHz; i16 Headroom }
+ sample[i] length = SoundEntry[i+1].BankOffsetBytes - SoundEntry[i].BankOffsetBytes
+ (last = bodyLen - SoundEntry[i].BankOffsetBytes)
 
 VAG ADPCM frame (16 bytes -> 28 samples) - canonical PSX/PS2/PSP, matches gvcslib.vag decode:
-    byte0 = (predictor<<4) | shift ; byte1 = flag ; byte2..15 = 28 nibbles (low first)
-    decode: s = sign4(nib)<<12 >> shift ; out = clamp16(s + (h1*F0[p] + h2*F1[p])>>6)
+ byte0 = (predictor<<4) | shift ; byte1 = flag ; byte2..15 = 28 nibbles (low first)
+ decode: s = sign4(nib)<<12 >> shift ; out = clamp16(s + (h1*F0[p] + h2*F1[p])>>6)
 flag: 0 normal, 1 end(one-shot stop), 6 loop-start, 3 loop-end(repeat), 7 silent/priming.
 
 The encoder is closed-loop (DPCM feedback uses the *reconstructed* history so error can't
@@ -62,10 +62,10 @@ class Bank:
 
 def resolve_pak_path(sfx_dir, base):
     """Locate a bank's pak file. PC ships it bare ('GENRL'); the PS2 disc ships
-    '<base>01.pak' (+ an '02.pak' byte-duplicate for the DVD seek layout, like
-    GTA3_1.IMG). Try the PC name first, then the PS2 forms, then a case-insensitive
-    scan. Returns the resolved path (falls back to the bare join so open() raises a
-    clear error if truly absent)."""
+ '<base>01.pak' (+ an '02.pak' byte-duplicate for the DVD seek layout, like
+ GTA3_1.IMG). Try the PC name first, then the PS2 forms, then a case-insensitive
+ scan. Returns the resolved path (falls back to the bare join so open() raises a
+ clear error if truly absent)."""
     for cand in (base, base + ".pak", base + "01.pak", base + "01", base + "02.pak"):
         p = os.path.join(sfx_dir, cand)
         if os.path.isfile(p):
@@ -82,9 +82,9 @@ def resolve_pak_path(sfx_dir, base):
 
 def bank_body_is_vag(body):
     """Sniff a bank body: True = Sony PS-ADPCM (PS2), False = raw 16-bit PCM (PC).
-    PS-ADPCM is 16-byte framed; byte[1] of every frame is a loop flag in 0..7 and the
-    low nibble of byte[0] is a shift 0..12. Real PCM audio breaks this within a few
-    frames (a sample's high byte routinely exceeds 7)."""
+ PS-ADPCM is 16-byte framed; byte[1] of every frame is a loop flag in 0..7 and the
+ low nibble of byte[0] is a shift 0..12. Real PCM audio breaks this within a few
+ frames (a sample's high byte routinely exceeds 7)."""
     n = min(len(body) // FRAME, 64)
     if n < 4:
         return False
@@ -112,9 +112,9 @@ def load_pakfiles(path):
 
 def _vag_sound_len(body, off):
     """Byte length of the VAG sound starting at `off`: scan frames to the SPU end marker
-    (flag 1/3/7) inclusive, bounded by the available body. Used for a bank's LAST sound,
-    which has no successor offset to bound it (the sounds are packed tight, each ending on
-    its end-flag frame, with only inter-BANK sector padding after the final one)."""
+ (flag 1/3/7) inclusive, bounded by the available body. Used for a bank's LAST sound,
+ which has no successor offset to bound it (the sounds are packed tight, each ending on
+ its end-flag frame, with only inter-BANK sector padding after the final one)."""
     p, n = off, len(body)
     while p + FRAME <= n:
         flag = body[p + 1]
@@ -181,25 +181,25 @@ def bank_pcm(bank, i):
 
 def bank_vag(bank, i):
     """Raw Sony PS-ADPCM (VAG) frames for sound i of a PS2 bank, ready to drop into the
-    sfx.bin VAG blob verbatim. Length is floored to a whole 16-byte frame (trailing DVD
-    sector padding on the last sound is dropped; the engine truncates partial frames
-    anyway via bytes/VAG_FRAME)."""
+ sfx.bin VAG blob verbatim. Length is floored to a whole 16-byte frame (trailing DVD
+ sector padding on the last sound is dropped; the engine truncates partial frames
+ anyway via bytes/VAG_FRAME)."""
     s = bank.sounds[i]
     data = bank.body[s.off: s.off + s.length]
     return data[: len(data) & ~(FRAME - 1)]
 
 def bank_loop_frames(bank, i):
     """PS2 loop point -> sfx.bin loopFrame (VAG frame index; NO_LOOP = one-shot). On PS2
-    the second SoundEntry u32 is the SPU loop address as a BYTE offset relative to the
-    sound's own upload base (0xFFFFFFFF = no loop); /16 converts it to a frame index,
-    matching the engine's loopFrame*VAG_SPF math and the PC encoder's block convention."""
+ the second SoundEntry u32 is the SPU loop address as a BYTE offset relative to the
+ sound's own upload base (0xFFFFFFFF = no loop); /16 converts it to a frame index,
+ matching the engine's loopFrame*VAG_SPF math and the PC encoder's block convention."""
     lp = bank.sounds[i].loop
     return NO_LOOP if lp == NO_LOOP else (lp // FRAME)
 
 def decode_vag(vag):
     """Decode Sony PS-ADPCM (VAG) bytes -> 16-bit mono PCM (LE bytes). Byte-exact match
-    of the engine's me_decode_next (the flag byte is ignored). Stdlib only - lets the
-    PS2 loading-tune bake produce WAV without pulling any external decoder."""
+ of the engine's me_decode_next (the flag byte is ignored). Stdlib only - lets the
+ PS2 loading-tune bake produce WAV without pulling any external decoder."""
     out = bytearray()
     h1 = h2 = 0
     for f in range(len(vag) // FRAME):
@@ -228,7 +228,7 @@ def _clamp16(v):
 
 def _enc_block(x, h1, h2):
     """Encode 28 PCM samples (ints) -> (16 bytes payload, new_h1, new_h2).
-    Brute-forces 5 predictors x best shift, picks min squared error (closed loop)."""
+ Brute-forces 5 predictors x best shift, picks min squared error (closed loop)."""
     best = None  # (err, predictor, shift, nibbles[28], rh1, rh2)
     for p in range(5):
         f0, f1 = F0[p], F1[p]
@@ -273,11 +273,11 @@ def _enc_block(x, h1, h2):
 def encode_vag(pcm, loop_start_samples=NO_LOOP, prime=True):
     """PCM (bytes, 16-bit mono LE) -> VAG ADPCM bytes.
 
-    A leading silent/priming frame (00 07 ..) is prepended (conventional, what retail VAGs
-    carry) so the decoder starts from a clean h1=h2=0 block. Loop/end flags are written into
-    byte1: one-shot -> last frame flag 1; looping -> loop-start frame flag 6, last frame flag 3.
-    Returns (vag_bytes, loop_block_index_or_-1).
-    """
+ A leading silent/priming frame (00 07 ..) is prepended (conventional, what retail VAGs
+ carry) so the decoder starts from a clean h1=h2=0 block. Loop/end flags are written into
+ byte1: one-shot -> last frame flag 1; looping -> loop-start frame flag 6, last frame flag 3.
+ Returns (vag_bytes, loop_block_index_or_-1).
+ """
     n = len(pcm) // 2
     samples = list(struct.unpack("<%dh" % n, pcm[:n*2])) if n else []
     # pad to a whole 28-sample block

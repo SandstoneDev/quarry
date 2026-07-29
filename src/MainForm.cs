@@ -7,37 +7,37 @@ namespace Quarry;
 
 public sealed class MainForm : Form
 {
-    private readonly TextBox _isoBox = new { Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right };
-    private readonly TextBox _outBox = new { Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right };
-    private readonly Label _detect = new { AutoSize = true, Text = "no image selected" };
-    private readonly Button _convert = new { Text = "Convert", Enabled = false };
-    private readonly Button _cancel = new { Text = "Cancel", Enabled = false };
-    private readonly Label _eta = new { AutoSize = true, Text = "" };
-    private readonly TextBox _log = new
+    private readonly TextBox _isoBox = new() { Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right };
+    private readonly TextBox _outBox = new() { Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right };
+    private readonly Label _detect = new() { AutoSize = true, Text = "no image selected" };
+    private readonly Button _convert = new() { Text = "Convert", Enabled = false };
+    private readonly Button _cancel = new() { Text = "Cancel", Enabled = false };
+    private readonly Label _eta = new() { AutoSize = true, Text = "" };
+    private readonly TextBox _log = new()
     {
         Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical,
         Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom,
         Font = new Font(FontFamily.GenericMonospace, 8.5f),
     };
-    private readonly Panel _sections = new
+    private readonly Panel _sections = new()
     {
         AutoScroll = true, BorderStyle = BorderStyle.FixedSingle,
         Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right,
     };
-    private readonly List<SectionRow> _rows = new;   // one per ConvertPipeline.Section, in order
-    private readonly Label _version = new { AutoSize = true, ForeColor = Color.Gray, Anchor = AnchorStyles.Left | AnchorStyles.Bottom };
-    private readonly Label _updStatus = new { AutoSize = true, Text = "", ForeColor = Color.Gray, Anchor = AnchorStyles.Left | AnchorStyles.Bottom };
-    private readonly Button _checkUpd = new { Text = "Check for updates", Anchor = AnchorStyles.Right | AnchorStyles.Bottom };
-    private readonly ToolTip _tips = new { AutoPopDelay = 15000 };
+    private readonly List<SectionRow> _rows = new();   // one per ConvertPipeline.Section, in order
+    private readonly Label _version = new() { AutoSize = true, ForeColor = Color.Gray, Anchor = AnchorStyles.Left | AnchorStyles.Bottom };
+    private readonly Label _updStatus = new() { AutoSize = true, Text = "", ForeColor = Color.Gray, Anchor = AnchorStyles.Left | AnchorStyles.Bottom };
+    private readonly Button _checkUpd = new() { Text = "Check for updates", Anchor = AnchorStyles.Right | AnchorStyles.Bottom };
+    private readonly ToolTip _tips = new() { AutoPopDelay = 15000 };
 
     private CancellationTokenSource? _cts;
     private readonly EtaStore _eta_store = new(Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Quarry"));
-    private readonly System.Net.Http.HttpClient _http = new;
+    private readonly System.Net.Http.HttpClient _http = new();
     private System.IO.StreamWriter? _logFile;   // timestamped convert log written alongside the UI log
-    private readonly object _logLock = new;
+    private readonly object _logLock = new();
 
-    public MainForm
+    public MainForm()
     {
         Text = "Quarry - game data converter for Sandstone Engine";
         MinimumSize = new Size(580, 720);
@@ -46,16 +46,16 @@ public sealed class MainForm : Form
 
         var isoBtn = new Button { Text = "...", Anchor = AnchorStyles.Top | AnchorStyles.Right };
         var outBtn = new Button { Text = "...", Anchor = AnchorStyles.Top | AnchorStyles.Right };
-        isoBtn.Click += (_, _) => PickIso;
-        outBtn.Click += (_, _) => PickOut;
-        _convert.Click += (_, _) => RunConvert;
-        _cancel.Click += (_, _) => _cts?.Cancel;
+        isoBtn.Click += (_, _) => PickIso();
+        outBtn.Click += (_, _) => PickOut();
+        _convert.Click += (_, _) => RunConvert();
+        _cancel.Click += (_, _) => _cts?.Cancel();
         _checkUpd.Click += async (_, _) => await CheckUpdates(manual: true);
 
         var isoLbl = new Label { Text = "Disc image (.iso) of YOUR OWN game copy:", AutoSize = true };
         var outLbl = new Label { Text = "Output data folder (goes next to the engine EBOOT):", AutoSize = true };
 
-        SuspendLayout;
+        SuspendLayout();
         int x = 12, w = ClientSize.Width - 24;
         isoLbl.SetBounds(x, 12, w, 18);
         _isoBox.SetBounds(x, 32, w - 40, 24);
@@ -96,18 +96,18 @@ public sealed class MainForm : Form
             isoLbl, _isoBox, isoBtn, _detect, outLbl, _outBox, outBtn,
             _sections, _convert, _cancel, _eta, _log, _version, _updStatus, _checkUpd,
         });
-        ResumeLayout;
+        ResumeLayout();
 
         _ = CheckUpdates(manual: false);   // quiet auto-check on launch (offline-tolerant, no popup)
     }
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { CloseLogFile; _cts?.Dispose; _http.Dispose; _tips.Dispose; }
+        if (disposing) { CloseLogFile(); _cts?.Dispose(); _http.Dispose(); _tips.Dispose(); }
         base.Dispose(disposing);
     }
 
-    private void PickIso
+    private void PickIso()
     {
         using var dlg = new OpenFileDialog { Filter = "Disc images (*.iso)|*.iso|All files|*.*" };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
@@ -128,22 +128,22 @@ public sealed class MainForm : Form
         }
     }
 
-    private void PickOut
+    private void PickOut()
     {
         using var dlg = new FolderBrowserDialog { Description = "Where to build the data folder" };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
         _outBox.Text = Path.Combine(dlg.SelectedPath, "data");
         _convert.Enabled = _detect.ForeColor == Color.DarkGreen;
-        AnalyzeFolder;
+        AnalyzeFolder();
     }
 
     // Background: read the manifest in the chosen data/ folder and paint each row's
     // status badge + time estimate, and a header summary. Non-fatal (DataAnalyzer degrades).
-    private void AnalyzeFolder
+    private void AnalyzeFolder()
     {
         string dir = _outBox.Text;
         if (dir.Length == 0) return;
-        _ = Task.Run( =>
+        _ = Task.Run(() =>
         {
             try
             {
@@ -157,7 +157,7 @@ public sealed class MainForm : Form
                 }
                 int n = need; var t = total;
                 if (IsHandleCreated)
-                    BeginInvoke( => _eta.Text = n == 0
+                    BeginInvoke(() => _eta.Text = n == 0
                         ? "all sections up to date"
                         : $"{n} section(s) to build (about {Math.Round(t.TotalMinutes)} min)");
             }
@@ -165,16 +165,16 @@ public sealed class MainForm : Form
         });
     }
 
-    private async void RunConvert
+    private async void RunConvert()
     {
-        _convert.Enabled = false; _cancel.Enabled = true; _log.Clear;
-        _cts?.Dispose;
-        _cts = new CancellationTokenSource;
-        string tempDir = Path.Combine(Path.GetTempPath, "quarry_" + Environment.TickCount64);
+        _convert.Enabled = false; _cancel.Enabled = true; _log.Clear();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        string tempDir = Path.Combine(Path.GetTempPath(), "quarry_" + Environment.TickCount64);
         var enabled = ConvertPipeline.Sections
-            .Where(s => s.Id == "core" || _rows.First(r => r.SectionId == s.Id).Checked).ToList;
+            .Where(s => s.Id == "core" || _rows.First(r => r.SectionId == s.Id).Checked).ToList();
 
-        string logPath = OpenLogFile;   // timestamped file log so real per-step timings survive the run
+        string logPath = OpenLogFile();   // timestamped file log so real per-step timings survive the run
 
         var cx = new ConvertContext
         {
@@ -187,26 +187,26 @@ public sealed class MainForm : Form
             if (row is not null) { row.SetStatus(e.State); if (e.Percent > 0) row.SetProgress(e.Percent); }
             if (e.Line is not null) AppendLog($"[{e.SectionId}] {e.Line}");
         });
-        var sw = System.Diagnostics.Stopwatch.StartNew;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         using var timer = new System.Windows.Forms.Timer { Interval = 1000 };
         timer.Tick += (_, _) => _eta.Text = $"Elapsed {sw.Elapsed:hh\\:mm\\:ss}";   // hh: shows hours (mm:ss alone hid them)
-        timer.Start;
+        timer.Start();
         bool ok;
         try { ok = await SectionRunner.RunAsync(cx, enabled, progress, _eta_store, _cts.Token); }
         catch (OperationCanceledException) { ok = false; AppendLog("== CANCELLED =="); }
-        finally { cx.Iso?.Dispose; timer.Stop; }
+        finally { cx.Iso?.Dispose(); timer.Stop(); }
         try { Directory.Delete(tempDir, recursive: true); } catch { /* best-effort */ }
         AppendLog(ok ? "== SUCCESS ==" : "== DONE (with issues) ==");
         AppendLog($"total elapsed {sw.Elapsed:hh\\:mm\\:ss}");
         AppendLog($"log saved to: {logPath}");
-        CloseLogFile;
+        CloseLogFile();
         _eta.Text = $"done in {sw.Elapsed:hh\\:mm\\:ss}";
         _convert.Enabled = true; _cancel.Enabled = false;
-        AnalyzeFolder;   // refresh row statuses from what actually got built
+        AnalyzeFolder();   // refresh row statuses from what actually got built
     }
 
     // %LOCALAPPDATA%/Quarry/logs/convert_<timestamp>.log, with a header. Returns the path.
-    private string OpenLogFile
+    private string OpenLogFile()
     {
         string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Quarry", "logs");
         string path = Path.Combine(dir, $"convert_{DateTime.Now:yyyyMMdd_HHmmss}.log");
@@ -227,9 +227,9 @@ public sealed class MainForm : Form
         return path;
     }
 
-    private void CloseLogFile
+    private void CloseLogFile()
     {
-        lock (_logLock) { try { _logFile?.Flush; _logFile?.Dispose; } catch { } _logFile = null; }
+        lock (_logLock) { try { _logFile?.Flush(); _logFile?.Dispose(); } catch { } _logFile = null; }
     }
 
     // Route a log line to the timestamped file (thread-safe) AND the UI log. Called from baker
@@ -240,7 +240,7 @@ public sealed class MainForm : Form
         if (!IsHandleCreated) return;
         if (InvokeRequired)
         {
-            try { BeginInvoke( => _log.AppendText(line + Environment.NewLine)); }
+            try { BeginInvoke(() => _log.AppendText(line + Environment.NewLine)); }
             catch (ObjectDisposedException) { }
             catch (InvalidOperationException) { }
         }
@@ -254,7 +254,7 @@ public sealed class MainForm : Form
         _updStatus.Text = "checking for updates..."; _updStatus.ForeColor = Color.Gray;
         var r = await UpdateChecker.CheckAsync(QuarryInfo.Version, _http, CancellationToken.None);
         if (!IsHandleCreated) return;
-        BeginInvoke( =>
+        BeginInvoke(() =>
         {
             if (!r.Reachable)
             {

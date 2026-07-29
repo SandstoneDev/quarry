@@ -3,8 +3,8 @@
 
 The streaming cache (~5.8MB on real HW) THRASHES because the visible working set's
 textures don't fit -> the bg thread freads constantly (60-160ms/frame), stealing the
-main loop's CPU.  Halving the texture cap (128 -> 64) shrinks each texture ~4x (area),
-so far more fit resident -> the thrash stops.  This re-encodes per tile (no whole-map
+main loop's CPU. Halving the texture cap (128 -> 64) shrinks each texture ~4x (area),
+so far more fit resident -> the thrash stops. This re-encodes per tile (no whole-map
 re-bake): decode each swizzled T8 plane to RGBA, bilinear-downscale, re-author T8.
 
 Instance order / positions are untouched, so region_*.lod stay valid (re-run

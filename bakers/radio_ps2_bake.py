@@ -13,23 +13,23 @@ longer and the known-good build lists exactly 12 songs for that station. Talk
 stations are all long, so a pack with no short elements is marked talk throughout.
 
 Output:
-  <out>/<CODE>/NNN.adp      'ADP1' u16 channels, u16 rate, u32 bytesPerCh,
-                            u32 samplesPerCh, then interleaved ADPCM (0x2000 blocks)
-  <out>/radio.bin           'RAD2' manifest (below)
-  <out>/../cutscene/NNN.adp when --cutscene is given
+ <out>/<CODE>/NNN.adp 'ADP3' u16 channels, u16 rate, u32 bytesPerCh,
+ u32 samplesPerCh, then interleaved ADPCM (0x2000 blocks)
+ <out>/radio.bin 'RAD2' manifest (below)
+ <out>/../cutscene/NNN.adp when --cutscene is given
 
 radio.bin:
-  'RAD2' u32 version=2, u32 nStations
-  station: char code[4], u8 radioId, u8 flags, u16 nElems, char name[32]
-           elem[nElems]: u8 kind (0 music, 1 talk, 2 ident), u8 pad,
-                         u16 rate, u32 bytesPerCh, u32 samplesPerCh
-  Element N of station CODE is <CODE>/NNN.adp; bytesPerCh*2 is the file size.
+ 'RAD2' u32 version=2, u32 nStations
+ station: char code[4], u8 radioId, u8 flags, u16 nElems, char name[32]
+ elem[nElems]: u8 kind (0 music, 1 talk, 2 ident), u8 pad,
+ u16 rate, u32 bytesPerCh, u32 samplesPerCh
+ Element N of station CODE is <CODE>/NNN.adp; bytesPerCh*2 is the file size.
 
 Usage: radio_ps2_bake.py <audio-dir> <out-dir> [--cutscene <dir>] [--elf <file>]
-                        [--ambience <dir>] [--intro <file> <seconds>] [--names <file>]
-       --elf reads the station identifiers out of the game executable, which is where
-       the disc names its own stations; --names overrides with `CODE=Display Name`
-       lines. Without either, a station shows its pack code.
+ [--ambience <dir>] [--intro <file> <seconds>] [--names <file>]
+ --elf reads the station identifiers out of the game executable, which is where
+ the disc names its own stations; --names overrides with `CODE=Display Name`
+ lines. Without either, a station shows its pack code.
 """
 import os
 import struct
@@ -52,24 +52,35 @@ def classify(dur, pack_has_short):
     return IDENT if dur < IDENT_S else TALK
 
 
-ADP_MAGIC = b"ADP1"
-
+ADP_MAGIC = b"ADP3"
 
 def copy_element(fsrc, off, nbytes_total, dst, rate=0, channels=2, samples=0):
-    """Copy one element's ADPCM out, behind a 16-byte header so the player never has
-    to assume a rate or guess where the second channel starts."""
-    fsrc.seek(off + S.HDR)
-    left = nbytes_total
+    """Write one element out as ADP2: a 16-byte header, then each channel whole.
+
+ The source stores a channel in 0x10000 slices separated by the other channel's
+ slice and 0x1000 of padding (S.channel_bytes walks that). Writing the channels
+ FLAT means the runtime reads one straight forward, which both removes the
+ interleave as a source of bugs and halves the seeking its card reader does.
+ """
+    channels = max(1, channels)
+    per_ch = nbytes_total // channels
+    fsrc.seek(off + S.DATA)   # S.DATA, not S.HDR: the frame grid starts four bytes later
+    raw = fsrc.read(per_ch * channels + S.STREAM_PERIOD * 2)
+    chans = [S.channel_bytes(raw, c, per_ch) for c in range(channels)]
+    written = 0
     with open(dst, "wb") as o:
-        o.write(ADP_MAGIC + struct.pack("<HHII", channels, rate,
-                                        nbytes_total // max(1, channels), samples))
-        while left > 0:
-            chunk = fsrc.read(min(1 << 20, left))
-            if not chunk:
-                break
-            o.write(chunk)
-            left -= len(chunk)
-    return nbytes_total - left
+        o.write(ADP_MAGIC + struct.pack("<HHII", channels, rate, per_ch, samples))
+        # Interleave at exactly the runtime's refill window so one sequential read
+        # covers every channel. Flat channels (ADP2) looked tidier but put them
+        # bytesPerCh apart, which turned each refill into two DISTANT seeks: on
+        # hardware the card fell from 6.6 ms to 25.3 ms per request, the world
+        # streamer starved and CJ's house never loaded.
+        for pos in range(0, per_ch, S.WINDOW):
+            take = min(S.WINDOW, per_ch - pos)
+            for c in range(channels):
+                o.write(chans[c][pos:pos + take])
+                written += take
+    return written
 
 
 def main():
@@ -80,6 +91,7 @@ def main():
     cut_dir = None
     amb_dir = None
     intro = None
+    intro_subs = None
     elf_path = None
     names = {}
     a = 3
@@ -92,6 +104,8 @@ def main():
             amb_dir = sys.argv[a + 1]; a += 2
         elif sys.argv[a] == "--intro" and a + 2 < len(sys.argv):
             intro = (sys.argv[a + 1], float(sys.argv[a + 2])); a += 3
+        elif sys.argv[a] == "--intro-subs" and a + 1 < len(sys.argv):
+            intro_subs = sys.argv[a + 1]; a += 2
         elif sys.argv[a] == "--names" and a + 1 < len(sys.argv):
             for line in open(sys.argv[a + 1], encoding="utf-8", errors="replace"):
                 if "=" in line and not line.startswith("#"):
@@ -152,7 +166,22 @@ def main():
         out_path, want_s = intro
         pid = packs.index("CUTSCENE") if "CUTSCENE" in packs else -1
         best = None
-        if pid >= 0:
+        # The subtitles identify the take. Length does not: the CUTSCENE pack holds 141
+        # elements with closely spaced durations, and taking the one nearest the
+        # animation's 100.7 s picked a different scene entirely (100.4 s, and audibly
+        # the wrong dialogue). The subtitle file says exactly when someone speaks, so
+        # the right element is the one loud inside those windows and quiet between --
+        # it beat the runner-up 2.12 to 1.68 on the disc checked. Length stays as the
+        # fallback for a run with no subtitles.
+        if pid >= 0 and intro_subs and os.path.isfile(intro_subs):
+            wins = S.subtitle_windows(intro_subs)
+            tid, sc = S.match_by_subtitles(audio, packs, tracks, "CUTSCENE", wins)
+            if tid is not None:
+                h = S.read_header(audio, packs, tracks, tid)
+                best = (0.0, tid, h, h["samples"] / float(h["rate"] or 1))
+                print("  cutscene voice: matched %d subtitle line(s), element %d, score %.2f"
+                      % (len(wins), tid, sc))
+        if best is None and pid >= 0:
             for tid, (p, off, size) in enumerate(tracks):
                 if p != pid:
                     continue
@@ -189,12 +218,19 @@ def main():
         elems = by_pack.get(pid, [])
         if not elems:
             continue
+        # The track table covers every pack on the disc, but a run that only wants the
+        # ambience or the cutscene voice is given just those.PAK files. Skip a pack that
+        # was not staged instead of dying on it: without this an ambience-only run reports
+        # failure even though it already wrote its tracks.
+        if not S.pack_available(audio, name):
+            print("  %s: pack not staged, skipped" % name)
+            continue
 
         heads = []
         for tid, off, size in elems:
             try:
                 heads.append((tid, S.read_header(audio, packs, tracks, tid)))
-            except ValueError:
+            except (ValueError, OSError):
                 continue
         if not heads:
             continue

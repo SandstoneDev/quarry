@@ -10,14 +10,14 @@ CProp holds ONE texture, so the material carrying the most triangles wins and th
 others reuse it - their UVs still address their own islands of the sheet.
 
 PRP1 (little-endian), exactly what CProp_Load reads:
-  'PRP1' u16 nVert, nIdx, texW, texH, levels|amode<<8, clutEntries
-         u32 texelLen, clutLen
-  vert[nVert]: f32 u, v; u32 colour (bytes R,G,B,A); f32 x, y, z
-  idx[nIdx]:   u16
-  texels (swizzled T8, all mip levels), clut (RGBA8888)
+ 'PRP1' u16 nVert, nIdx, texW, texH, levels|amode<<8, clutEntries
+ u32 texelLen, clutLen
+ vert[nVert]: f32 u, v; u32 colour (bytes R,G,B,A); f32 x, y, z
+ idx[nIdx]: u16
+ texels (swizzled T8, all mip levels), clut (RGBA8888)
 
 Usage: prop_ps2_bake.py <dff-name> <txd-name> <out.bin> [amode]
-       gta3.img comes from SA_GTA3_IMG, else SA_ROOT/MODELS/gta3.img
+ gta3.img comes from SA_GTA3_IMG, else SA_ROOT/MODELS/gta3.img
 """
 import os
 import struct

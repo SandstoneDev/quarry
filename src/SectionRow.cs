@@ -8,22 +8,22 @@ public sealed class SectionRow : UserControl
 {
     private const int RowHeight = 30;
 
-    private readonly CheckBox _check = new
+    private readonly CheckBox _check = new()
     {
         AutoSize = false, Dock = DockStyle.Fill, AutoEllipsis = true,
         TextAlign = ContentAlignment.MiddleLeft, Margin = new Padding(6, 0, 8, 0),
     };
-    private readonly ProgressBar _bar = new
+    private readonly ProgressBar _bar = new()
     {
         Style = ProgressBarStyle.Continuous, Dock = DockStyle.Fill,
         Margin = new Padding(2, 8, 2, 8),
     };
-    private readonly Label _badge = new
+    private readonly Label _badge = new()
     {
         AutoSize = false, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter,
         Margin = new Padding(2, 5, 2, 5), Font = new Font(FontFamily.GenericSansSerif, 8f),
     };
-    private readonly Label _time = new
+    private readonly Label _time = new()
     {
         AutoSize = false, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight,
         ForeColor = Color.Gray, Margin = new Padding(2, 0, 8, 0),
@@ -57,10 +57,10 @@ public sealed class SectionRow : UserControl
         SetStatus(SectionStatus.NotBuilt);
     }
 
-    public void SetProgress(int pct) => OnUi( => { _bar.Value = Math.Clamp(pct, 0, 100); });
-    public void SetEstimate(TimeSpan t) => OnUi( => { _time.Text = t.TotalSeconds < 1 ? "" : Human(t); });
+    public void SetProgress(int pct) => OnUi(() => { _bar.Value = Math.Clamp(pct, 0, 100); });
+    public void SetEstimate(TimeSpan t) => OnUi(() => { _time.Text = t.TotalSeconds < 1 ? "" : Human(t); });
 
-    public void SetStatus(SectionStatus s) => OnUi( =>
+    public void SetStatus(SectionStatus s) => OnUi(() =>
     {
         (_badge.Text, _badge.ForeColor, _badge.BackColor) = s switch
         {
@@ -80,7 +80,7 @@ public sealed class SectionRow : UserControl
 
     private void OnUi(Action a)
     {
-        if (!InvokeRequired) { a; return; }          // already on the UI thread
+        if (!InvokeRequired) { a(); return; }          // already on the UI thread
         if (!IsHandleCreated) return;                  // background thread, control not ready -> drop (initial state already set)
         try { BeginInvoke(a); }
         catch (ObjectDisposedException) { /* row/form disposed mid-flight */ }

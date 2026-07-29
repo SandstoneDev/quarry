@@ -2,7 +2,7 @@
 """cull_air_bake - extract EXTRA_AIR_RESISTANCE (flag 0x4000) cull zones from cull.ipl
 and write data/cull_air.bin: the freeway speed-cap zones (SA CCullZones).
 
-Format (little-endian):  u32 magic 'CULA' | u32 count | count x {f32 minX,minY,minZ,maxX,maxY,maxZ}
+Format (little-endian): u32 magic 'CULA' | u32 count | count x {f32 minX,minY,minZ,maxX,maxY,maxZ}
 
 A regular CULL row is 11 fields: cx cy cz, v1x v1y minZ, v2x v2y maxZ, flags, flags2.
 SA builds an oriented parallelogram (corner + 2 edges); 23/29 retail air zones are
@@ -36,7 +36,7 @@ def parse_cull_rows(path):
 
 def zone_aabb(t):
     """11-field regular row -> (minx,miny,minz,maxx,maxy,maxz). corner = pos-v1-v2,
-    edges = 2*v1, 2*v2; AABB over the 4 XY corners."""
+ edges = 2*v1, 2*v2; AABB over the 4 XY corners."""
     x, y = float(t[0]), float(t[1])
     v1x, v1y = float(t[3]), float(t[4])
     minz = float(t[5])

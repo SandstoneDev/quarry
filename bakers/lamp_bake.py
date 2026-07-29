@@ -8,7 +8,7 @@ lamppost / streetlamp / mlamppost / lampost); IPL placements (text maps + binary
 above the base. De-duplicated by rounded position (a lamp + its LOD proxy overlap).
 
 Out: assets_build/lamps.bin = u32 count + per-lamp { f32 x,y,z, r,g,b, radius } (28B).
-  python tools/lamp_bake.py
+ python tools/lamp_bake.py
 """
 import os, struct, sys, math
 sys.path.insert(0, os.environ.get("GVCS_ROOT", ""))

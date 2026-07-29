@@ -9,7 +9,7 @@ reused as-is; the single tile is emitted via build_grid_pmaps with a huge tile
 size and renamed. COL comes from the gta_int col libraries via col_bake's
 model_geometry/build_blob.
 
-  python interior_bake.py 3          # CARLS (CJ's house)
+ python interior_bake.py 3 # CARLS (CJ's house)
 """
 import glob
 import os
@@ -79,18 +79,18 @@ class _MatShim:
 
 class _GeoShim:
     """Duck-typed SAW Geometry for map_export.geom.geometry_submeshes: exposes
-    vertices / uvs / prelit_colors / splits / materials / num_vertices."""
+ vertices / uvs / prelit_colors / splits / materials / num_vertices."""
     __slots__ = ("vertices", "uvs", "prelit_colors", "splits", "materials",
                  "num_vertices")
 
 
 def _ps2_model_to_geo(model):
     """Adapt a ps2dff.decode_sa SaModel (already welded/triangulated .meshes) into
-    the SAW-Geometry shape map_export.geom.process_geometry consumes - so the
-    guard-band tessellation + striped-UV split + ambient/pack stay in the interior
-    path UNCHANGED, only the DFF codec swapped PC->PS2. Colours are the PS2 DAY
-    prelight (ps2dff packs day in the low byte); positions are frame-local, which
-    for atomic IDE models (all interiors) is model-local (see ps2dff docstring)."""
+ the SAW-Geometry shape map_export.geom.process_geometry consumes - so the
+ guard-band tessellation + striped-UV split + ambient/pack stay in the interior
+ path UNCHANGED, only the DFF codec swapped PC->PS2. Colours are the PS2 DAY
+ prelight (ps2dff packs day in the low byte); positions are frame-local, which
+ for atomic IDE models (all interiors) is model-local (see ps2dff docstring)."""
     geo = _GeoShim()
     geo.vertices = []
     geo.uvs = [[]]
@@ -129,7 +129,7 @@ def img_read(img, name):
 
 def gather_instances(img_int, area, centre, radius):
     """Placements with interior == area INSIDE the pocket around `centre`
-    (one area code is reused by many coordinate pockets across the map)."""
+ (one area code is reused by many coordinate pockets across the map)."""
     cx, cy, cz = centre
     out = []
     for e in img_int.entries:
@@ -197,8 +197,8 @@ _defs = None; _img_int = None; _img_main = None; _col_idx = None
 
 def bake_interior(name, area, centre, radius=45.0):
     """Bake interior_<name>.pmap/.col for the pocket of `area` around `centre`.
-    Returns (pmap_bytes, col_bytes) or None if the pocket is empty. Shared
-    parsers are cached for batch calls."""
+ Returns (pmap_bytes, col_bytes) or None if the pocket is empty. Shared
+ parsers are cached for batch calls."""
     global _defs, _img_int, _img_main, _col_idx
     if _defs is None:
         _defs = sa_source.load_defs()

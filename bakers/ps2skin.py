@@ -6,7 +6,7 @@ so those read fine with the PC codecs (tools/sa_skin + hero_bake.parse_geometry)
 But the cutscene actors (cssmoke = Big Smoke, csbat, ... in cutscene.img) and the
 ambient civilians (fam1, ... in gta3.img) are stored PS2-NATIVE: VIF-instanced
 geometry (RpGeometry NATIVE bit, NativeDataPLG 0x510) + a NATIVE skin plugin
-(RpSkin 0x116, ps2::readNativeSkin).  tools/ps2dff already uninstances PS2-native
+(RpSkin 0x116, ps2::readNativeSkin). tools/ps2dff already uninstances PS2-native
 STATIC world geometry; this module drives it through the SKIN pipeline and reshapes
 the result into exactly what the skinned bakers already consume, so cutscene_bake /
 ped_bake feed a native actor through hero_bake unchanged.
@@ -14,24 +14,24 @@ ped_bake feed a native actor through hero_bake unchanged.
 Codec (cross-checked against librw src/ps2/ps2skin.cpp + src/skin.cpp and byte-for-
 byte against the PC twin of cssmoke - see the module self-test):
 
-  * NATIVE SKIN plugin (0x116) -> ps2dff._read_native_skin: numBones, numUsedBones,
-    numWeights, usedBones[], inverseMatrices[numBones][16].  The inverse-bind
-    matrices are byte-identical to the PC twin; usedBones matches the PC twin's
-    used-bone set exactly.
-  * PER-VERTEX weights/indices are NOT in the plugin - they ride the geometry VIF
-    stream as a 5th attribute (AT_NORMAL+1, V4_32), captured by ps2dff._parse_chain
-    and welded parallel to pos/uv/colour (verts differing only in bone binding do
-    NOT weld).  weight = float(w & ~0x3FF); boneIndex = ((w & 0x3FF) >> 2) - 1.
-  * FRAMELIST + HANIM are platform-neutral -> reuse sa_skin.decode_skeleton (the
-    same frame/node hierarchy the hero uses).  Verified: node table + the
-    nodeId->parent map are identical on the PC and PS2 twins.
+ * NATIVE SKIN plugin (0x116) -> ps2dff._read_native_skin: numBones, numUsedBones,
+ numWeights, usedBones[], inverseMatrices[numBones][16]. The inverse-bind
+ matrices are byte-identical to the PC twin; usedBones matches the PC twin's
+ used-bone set exactly.
+ * PER-VERTEX weights/indices are NOT in the plugin - they ride the geometry VIF
+ stream as a 5th attribute (AT_NORMAL+1, V4_32), captured by ps2dff._parse_chain
+ and welded parallel to pos/uv/colour (verts differing only in bone binding do
+ NOT weld). weight = float(w & ~0x3FF); boneIndex = ((w & 0x3FF) >> 2) - 1.
+ * FRAMELIST + HANIM are platform-neutral -> reuse sa_skin.decode_skeleton (the
+ same frame/node hierarchy the hero uses). Verified: node table + the
+ nodeId->parent map are identical on the PC and PS2 twins.
 
 API (mirrors the neutral path so the bakers are agnostic):
-  is_native_skinned(blob) -> bool
-  geometry(blob)          -> (positions, uvs, colors, submeshes, mat_names, nvert, normals)
-                             == hero_bake.parse_geometry's return
-  decode(blob)            -> {frames, nodes, geoms:[{nvert,numBones,numUsed,maxW,
-                             used,boneIdx,boneW,invBind}]} == sa_skin.decode's return
+ is_native_skinned(blob) -> bool
+ geometry(blob) -> (positions, uvs, colors, submeshes, mat_names, nvert, normals)
+ == hero_bake.parse_geometry's return
+ decode(blob) -> {frames, nodes, geoms:[{nvert,numBones,numUsed,maxW,
+ used,boneIdx,boneW,invBind}]} == sa_skin.decode's return
 """
 import math
 import os
@@ -45,8 +45,8 @@ import sa_skin
 
 def is_native_skinned(blob):
     """True iff this DFF's first geometry is PS2-native AND carries a skin plugin
-    (cutscene actors / ambient peds).  PC/neutral skinned DFFs -> False (the caller
-    keeps the sa_skin path); world/vehicle native DFFs -> False (no skin plugin)."""
+ (cutscene actors / ambient peds). PC/neutral skinned DFFs -> False (the caller
+ keeps the sa_skin path); world/vehicle native DFFs -> False (no skin plugin)."""
     try:
         b = bytes(blob)
         cl_off, cl_size = ps2dff._find(b, 0, len(b), ps2dff.C_CLUMP)
@@ -75,10 +75,10 @@ def is_native_skinned(blob):
 
 
 def _compute_normals(positions, tris, nvert):
-    """Per-vertex normals = area-weighted average of adjacent face normals.  The PS2
-    skinned stream carries NO normal attribute (cutscene actors drop it, so the weld
-    can't split on it either), so we synthesise smooth normals from the triangles --
-    exactly hero_bake._compute_normals, kept here to avoid a circular import."""
+    """Per-vertex normals = area-weighted average of adjacent face normals. The PS2
+ skinned stream carries NO normal attribute (cutscene actors drop it, so the weld
+ can't split on it either), so we synthesise smooth normals from the triangles --
+ exactly hero_bake._compute_normals, kept here to avoid a circular import."""
     acc = [[0.0, 0.0, 0.0] for _ in range(nvert)]
     for tri in tris:
         v0, v1, v2 = tri[0], tri[1], tri[2]
@@ -98,9 +98,9 @@ def _compute_normals(positions, tris, nvert):
 
 
 # ps2dff.load_dff + sa_skin.decode_skeleton are both non-trivial, and hero_bake calls
-# geometry() and decode() back-to-back on the SAME component bytes.  Memoise the
+# geometry and decode back-to-back on the SAME component bytes. Memoise the
 # combined decode so both halves come from ONE weld (guaranteeing identical vertex
-# order/count) and the work isn't repeated.  Keyed by content hash; a few entries.
+# order/count) and the work isn't repeated. Keyed by content hash; a few entries.
 _CACHE = {}
 _CACHE_ORDER = []
 
@@ -120,7 +120,13 @@ def _full(blob):
 
 
 def _decode_full(b):
-    model = ps2dff.load_dff(b)
+    # Skinned characters pack positions as s16 6.10, NOT the world's s16 9.7 - the same
+    # split the vehicle pipeline already has. Decoding them at the world scale made every
+    # PS2-native actor exactly 8x too large (1024/128): the baked cssmoke stood 15.13 units
+    # tall and the ambient civilians 15.04, both of which land on a normal 1.88 m human once
+    # divided by 8, while CJ - the one actor that comes from the platform-neutral
+    # player.img and never touches this codec - measured a correct 1.82.
+    model = ps2dff.load_dff(b, ps2dff.POS_SCALE_SKIN)
     if not model.geometries:
         raise ValueError("ps2skin: DFF has no geometry")
     # peds/actors are single-geometry; mirror hero_bake.parse_geometry (first geom).
@@ -130,7 +136,19 @@ def _decode_full(b):
 
     positions = list(geo.verts)
     uvs = list(geo.uvs)
-    colors = [(d[0] << 24) | (d[1] << 16) | (d[2] << 8) | d[3] for d in geo.day]
+    # NOT a prelight. The VIF stream's colour slot on a native SKINNED actor holds
+    # something else entirely: measured on the baked file, neighbouring vertices carry
+    # (32,96,0), (0,128,192), (224,0,96) - saturated greens beside blues beside reds,
+    # with a mean of (108,120,124). Real per-vertex lighting on a character is close to
+    # white and varies smoothly. Feeding this to the mixer as colour is what made Big
+    # Smoke come out dark and blotchy.
+    #
+    # The decisive comparison is CJ: he is assembled from the platform-neutral
+    # player.img, never touches this codec, and his vertices are 0xFFFFFFFF everywhere.
+    # Characters are meant to be lit dynamically - SkinAnim already applies ambient,
+    # sun and point lights per vertex - so white is the correct value here, and it is
+    # what the one actor that always looked right has been using all along.
+    colors = [0xFFFFFFFF] * len(positions)
     nvert = len(positions)
 
     by_mat = {}
@@ -163,13 +181,13 @@ def _decode_full(b):
 
 def geometry(blob):
     """hero_bake.parse_geometry drop-in for a PS2-native skinned DFF:
-    (positions, uvs, colors, submeshes, mat_names, nvert, normals)."""
+ (positions, uvs, colors, submeshes, mat_names, nvert, normals)."""
     return _full(blob)["geometry"]
 
 
 def decode(blob):
     """sa_skin.decode drop-in for a PS2-native skinned DFF:
-    {frames, nodes, geoms:[{nvert,numBones,numUsed,maxW,used,boneIdx,boneW,invBind}]}."""
+ {frames, nodes, geoms:[{nvert,numBones,numUsed,maxW,used,boneIdx,boneW,invBind}]}."""
     f = _full(blob)
     return {"frames": f["frames"], "nodes": f["nodes"], "geoms": f["geoms"]}
 

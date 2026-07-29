@@ -19,7 +19,7 @@ public static class SectionRunner
         IProgress<SectionEvent> events, EtaStore eta, CancellationToken ct)
     {
         events.Report(new("__prepare", SectionStatus.Running, 0, "preparing (reading disc)"));
-        bool prep = await Task.Run( => RunPrepare(cx), ct);
+        bool prep = await Task.Run(() => RunPrepare(cx), ct);
         if (!prep) { events.Report(new("__prepare", SectionStatus.Failed, 0, "prepare failed")); return false; }
 
         var manifest = Manifest.Load(cx.OutDir);
@@ -32,12 +32,12 @@ public static class SectionRunner
             // route this section's baker % to its row (sequential -> no race on cx.OnPercent)
             cx.OnPercent = pct => events.Report(new(sec.Id, SectionStatus.Running, pct, null));
             events.Report(new(sec.Id, SectionStatus.Running, 0, $"starting {sec.Id}"));
-            var sw = System.Diagnostics.Stopwatch.StartNew;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             bool ok;
-            try { ok = await Task.Run( => RunSection(cx, sec, manifest), ct); }
+            try { ok = await Task.Run(() => RunSection(cx, sec, manifest), ct); }
             catch (OperationCanceledException) { ok = false; }
             catch (Exception ex) { events.Report(new(sec.Id, SectionStatus.Failed, 0, ex.Message)); ok = false; }
-            finally { sw.Stop; cx.OnPercent = null; }
+            finally { sw.Stop(); cx.OnPercent = null; }
 
             if (ct.IsCancellationRequested) events.Report(new(sec.Id, SectionStatus.Cancelled, 0, null));
             else if (ok) { eta.Record(sec.Id, sw.Elapsed); events.Report(new(sec.Id, SectionStatus.Done, 100, $"{sec.Id} done")); }
@@ -57,11 +57,11 @@ public static class SectionRunner
         IEnumerable<(string id, Func<Task> fn)> work,
         IProgress<SectionEvent> events, CancellationToken ct)
     {
-        var results = new Dictionary<string, bool>;
+        var results = new Dictionary<string, bool>();
         foreach (var w in work)
         {
             if (ct.IsCancellationRequested) break;
-            try { await w.fn; results[w.id] = true; events.Report(new(w.id, SectionStatus.Done, 100, null)); }
+            try { await w.fn(); results[w.id] = true; events.Report(new(w.id, SectionStatus.Done, 100, null)); }
             catch { results[w.id] = false; events.Report(new(w.id, SectionStatus.Failed, 0, null)); }
         }
         return results;

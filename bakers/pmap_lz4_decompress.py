@@ -4,32 +4,32 @@
 
 v3 stores each model's geometry blob (verts||indices) and each texture's blob
 (texels||clut) as a per-model / per-texture LZ4 block; v2 stores those pools raw
-and contiguous.  v3-only tools (pmap_tex_downscale.py, which reads through
+and contiguous. v3-only tools (pmap_tex_downscale.py, which reads through
 gvcslib.psp_scene) choke on v3 ("unsupported PMAP version 3"); this restores a
 byte-exact v2 so the v2 toolchain can edit the tile, after which pmap_lz4.py
 re-compresses it to v3.
 
 This is the exact inverse of pmap_lz4.compress():
-  * header version 3 -> 2, the +3 u32 (comp_flag/comp_model_off/comp_tex_off)
-    dropped, every prefix *_off un-shifted by the 12-byte header shrink
-  * the resident prefix body (model/submesh/texture/instance tables + grid + cell
-    lists) copied verbatim - it holds NO absolute file offsets, only pool-local
-    indices, so it is version-agnostic
-  * each LZ4 block inflated (uncompressed size RECOMPUTED exactly as the engine
-    does in pmap.c: model span = (last submesh v/i end - first submesh v/i start);
-    texture = texel_bytes + clut_entries*4) and scattered back into the raw pools
-    at its pool-local position (verts@vfirst*12, idx@ifirst*2, texels@texel_first,
-    clut@clut_first) - the inter-texture alignment padding stays zero, matching
-    what psp_scene.write_scene emitted originally.
+ * header version 3 -> 2, the +3 u32 (comp_flag/comp_model_off/comp_tex_off)
+ dropped, every prefix *_off un-shifted by the 12-byte header shrink
+ * the resident prefix body (model/submesh/texture/instance tables + grid + cell
+ lists) copied verbatim - it holds NO absolute file offsets, only pool-local
+ indices, so it is version-agnostic
+ * each LZ4 block inflated (uncompressed size RECOMPUTED exactly as the engine
+ does in pmap.c: model span = (last submesh v/i end - first submesh v/i start);
+ texture = texel_bytes + clut_entries*4) and scattered back into the raw pools
+ at its pool-local position (verts@vfirst*12, idx@ifirst*2, texels@texel_first,
+ clut@clut_first) - the inter-texture alignment padding stays zero, matching
+ what psp_scene.write_scene emitted originally.
 
 A decompress -> pmap_lz4.py re-compress reproduces the ORIGINAL v3 byte-for-byte
 (--validate proves it per tile); that is the correctness guarantee.
 
 Usage:
-  python pmap_lz4_decompress.py <in_v3.pmap> <out_v2.pmap>
-  python pmap_lz4_decompress.py --dir <data_dir>        # v3 -> v2 in place
-  python pmap_lz4_decompress.py --validate <v3.pmap>    # round-trip vs pmap_lz4.py
-  python pmap_lz4_decompress.py --validate --dir <dir>  # round-trip every tile
+ python pmap_lz4_decompress.py <in_v3.pmap> <out_v2.pmap>
+ python pmap_lz4_decompress.py --dir <data_dir> # v3 -> v2 in place
+ python pmap_lz4_decompress.py --validate <v3.pmap> # round-trip vs pmap_lz4.py
+ python pmap_lz4_decompress.py --validate --dir <dir> # round-trip every tile
 """
 import os
 import sys
@@ -83,8 +83,8 @@ def decompress(path_in, path_out):
         raise SystemExit("%s: v3 header but comp_flag=0 (no LZ4 pools)" % path_in)
 
     # ---- resident prefix body: tables + grid, copied verbatim (v3->v2 identical) ----
-    # data[HDR_V3 : comp_model_off] is exactly what compress() wrote from v2's
-    # data[HDR_V2 : vertex_off]. The comp tables live between the body and the blobs.
+    # data[HDR_V3: comp_model_off] is exactly what compress wrote from v2's
+    # data[HDR_V2: vertex_off]. The comp tables live between the body and the blobs.
     body = data[HDR_V3:comp_model_off]
 
     # ---- comp tables (absolute file offset + compressed size per blob) ----
@@ -179,8 +179,8 @@ def decompress(path_in, path_out):
 
 def validate(path_v3, verbose=True):
     """Round-trip: v3 -> decompress -> v2 -> pmap_lz4.compress -> v3'.
-    Byte-identical v3' proves the format is understood and the v2 is correct.
-    Returns True on match."""
+ Byte-identical v3' proves the format is understood and the v2 is correct.
+ Returns True on match."""
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import pmap_lz4
 

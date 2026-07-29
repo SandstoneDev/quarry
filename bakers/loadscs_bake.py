@@ -12,8 +12,8 @@ The title card is packed FIRST. The engine treats index 0 as the title: it shows
 once at boot with the progress bar hidden, then cycles the remaining arts at random
 and never returns to it.
 
-  header : u32 magic 'LDSC', u32 count, u32 width(512), u32 height(512)
-  texels : count * (512*512*4) RGBA8888 (alpha last == PSP GU_PSM_8888)
+ header : u32 magic 'LDSC', u32 count, u32 width(512), u32 height(512)
+ texels : count * (512*512*4) RGBA8888 (alpha last == PSP GU_PSM_8888)
 
 1 MB resident per art; only one is held at a time, before the streaming cache is live.
 
@@ -34,7 +34,7 @@ SIZE = 512
 
 def find_txd(src):
     """The LOADS<region>.txd next to src (src may be that file or the txd dir).
-    Also probes SA_ROOT/models/txd so an env-only call resolves."""
+ Also probes SA_ROOT/models/txd so an env-only call resolves."""
     dirs = []
     if src:
         dirs.append(src if os.path.isdir(src) else os.path.dirname(src))
@@ -50,8 +50,8 @@ def find_txd(src):
 
 def art_order(names):
     """Title card first, then loadscN by number. The title is the entry carrying no
-    digits (loadscuk on a PAL disc); a disc without one simply has no title card and
-    every art joins the rotation."""
+ digits (loadscuk on a PAL disc); a disc without one simply has no title card and
+ every art joins the rotation."""
     numbered = sorted((int(re.search(r"(\d+)", n).group(1)), n)
                       for n in names if re.search(r"(\d+)", n))
     title = [n for n in names if not re.search(r"(\d+)", n)]

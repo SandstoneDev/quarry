@@ -2,9 +2,9 @@
 """sa_source - enumerate + decode the source game map data via the SAW parsers.
 
 Outputs plain dicts/lists:
-  defs      {model_id: {"dff","txd","dd","flags"}}         (objs + tobj)
-  instances [{"model_id","name","pos","quat","interior","is_lod"}]
-  meshes come later (geom.py) - this module only lists WHICH dffs are needed.
+ defs {model_id: {"dff","txd","dd","flags"}} (objs + tobj)
+ instances [{"model_id","name","pos","quat","interior","is_lod"}]
+ meshes come later (geom.py) - this module only lists WHICH dffs are needed.
 
 IPL sources: every text .ipl from gta.dat + every binary *stream*.ipl inside
 gta3.img (SA streams most of the world placements as binary IPL; their
@@ -46,7 +46,7 @@ def _gta_dat_files():
 
 def load_defs():
     """{model_id: {dff, txd, dd, flags}} from every gta.dat IDE (objs+tobj).
-    dd = lod_dists[0] (SA multi-mesh models keep the first)."""
+ dd = lod_dists[0] (SA multi-mesh models keep the first)."""
     defs = {}
     ides, _ = _gta_dat_files()
     for path in ides:
@@ -70,15 +70,15 @@ def load_defs():
 
 def load_instances(defs, img):
     """All world placements: text IPLs (gta.dat) + binary stream IPLs (gta3.img).
-    Returns [{model_id,name,pos,quat,interior,is_lod,lod_ref}] where lod_ref is
-    the GLOBAL index (into this returned list) of the instance's LOD proxy, or
-    -1. Link rules (SA):
-      text ipl:   inst.lod = row index in the SAME file
-      binary ipl: inst.lod = row index in the COMPANION TEXT ipl - the stream
-                  file 'x_streamN.ipl' links into 'x.ipl' rows (SA quirk; a
-                  self-file read mislabels random details, caught on the pilot
-                  when the Grove bridge span got flagged is_lod and skipped).
-    is_lod = the model name starts with 'lod' (every SA district proxy does)."""
+ Returns [{model_id,name,pos,quat,interior,is_lod,lod_ref}] where lod_ref is
+ the GLOBAL index (into this returned list) of the instance's LOD proxy, or
+ -1. Link rules (SA):
+ text ipl: inst.lod = row index in the SAME file
+ binary ipl: inst.lod = row index in the COMPANION TEXT ipl - the stream
+ file 'x_streamN.ipl' links into 'x.ipl' rows (SA quirk; a
+ self-file read mislabels random details, caught on the pilot
+ when the Grove bridge span got flagged is_lod and skipped).
+ is_lod = the model name starts with 'lod' (every SA district proxy does)."""
     _, ipls = _gta_dat_files()
     all_rows = []            # (file_tag, is_text, per-file list of inst dicts)
     for path in ipls:

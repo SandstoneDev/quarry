@@ -22,7 +22,7 @@ public sealed class FileRecord
 public sealed class StageRecord
 {
     public int Version { get; set; }
-    public List<FileRecord> Outputs { get; set; } = new;
+    public List<FileRecord> Outputs { get; set; } = new();
 }
 
 public sealed class Manifest
@@ -31,11 +31,11 @@ public sealed class Manifest
     public string ConverterVersion { get; set; } = "";
     public string DiscElf { get; set; } = "";
     public string DiscVer { get; set; } = "";
-    public Dictionary<string, StageRecord> Stages { get; set; } = new;
+    public Dictionary<string, StageRecord> Stages { get; set; } = new();
 
     private const string FileName = "quarry.manifest.json";
 
-    private static readonly JsonSerializerOptions JsonOpts = new
+    private static readonly JsonSerializerOptions JsonOpts = new()
     {
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
@@ -44,9 +44,9 @@ public sealed class Manifest
     public static Manifest Load(string dataDir)
     {
         string p = System.IO.Path.Combine(dataDir, FileName);
-        if (!File.Exists(p)) return new Manifest;
-        try { return JsonSerializer.Deserialize<Manifest>(File.ReadAllText(p)) ?? new Manifest; }
-        catch { return new Manifest; }          // corrupt manifest = treat as absent (full rebake)
+        if (!File.Exists(p)) return new Manifest();
+        try { return JsonSerializer.Deserialize<Manifest>(File.ReadAllText(p)) ?? new Manifest(); }
+        catch { return new Manifest(); }          // corrupt manifest = treat as absent (full rebake)
     }
 
     public void Save(string dataDir)
@@ -59,8 +59,8 @@ public sealed class Manifest
     public static string Sha256(string path)
     {
         using var s = File.OpenRead(path);
-        using var h = SHA256.Create;
-        return Convert.ToHexString(h.ComputeHash(s)).ToLowerInvariant;
+        using var h = SHA256.Create();
+        return Convert.ToHexString(h.ComputeHash(s)).ToLowerInvariant();
     }
 
     private static string Rel(string dataDir, string full) =>
@@ -87,7 +87,7 @@ public sealed class Manifest
     /// Snapshot a directory tree as {relpath -> (size, lastWriteUtc ticks)}.
     public static Dictionary<string, (long size, long ticks)> Snapshot(string dir)
     {
-        var map = new Dictionary<string, (long, long)>;
+        var map = new Dictionary<string, (long, long)>();
         if (!Directory.Exists(dir)) return map;
         foreach (var f in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
         {
@@ -99,12 +99,12 @@ public sealed class Manifest
     }
 
     /// Like Snapshot, but limited to the given subtree roots so parallel stages that
-    /// write disjoint folders never cross-attribute each other's files. A root of "" means
+    /// write disjoint folders never cross-attribute each other's files. A root of means
     /// the data/ root's top-level files only (non-recursive); any other root is a subdir
     /// walked recursively. The manifest file itself is always excluded.
     public static Dictionary<string, (long size, long ticks)> SnapshotScoped(string dataDir, IEnumerable<string> roots)
     {
-        var map = new Dictionary<string, (long, long)>;
+        var map = new Dictionary<string, (long, long)>();
         foreach (var root in roots)
         {
             if (root.Length == 0)

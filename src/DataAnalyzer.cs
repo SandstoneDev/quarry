@@ -31,7 +31,7 @@ public static class DataAnalyzer
     // ordered Corrupt > NotBuilt > NeedsUpdate > UpToDate.
     public static SectionAnalysis AnalyzeSection(ConvertPipeline.Section sec, string dataDir, EtaStore eta)
     {
-        var tracked = sec.Steps.Where(s => s.StageId.Length > 0).ToArray;
+        var tracked = sec.Steps.Where(s => s.StageId.Length > 0).ToArray();
         SectionStatus worst = SectionStatus.UpToDate;
         if (tracked.Length == 0) worst = SectionStatus.NotBuilt;
         foreach (var step in tracked)

@@ -1,6 +1,6 @@
 // The conversion pipeline: from a disc image to an engine data/ folder. Steps
 // are grouped into user-facing Sections (the checkboxes in the UI); a "prepare"
-
+// phase (disc read + plain-file staging) always runs first. phase 2 wires the WORLD
 // map bake (the ps2world chain); audio / vehicles / cutscenes / interiors / HUD
 // have bakers in tools/ but show as a greyed roadmap until wired.
 //
@@ -45,7 +45,7 @@ public static class ConvertPipeline
         ("ANIM/PED.IFP",          "anim/ped.ifp"),
     };
 
-    
+    // IMG archives worth a directory listing at phase 1 (extraction comes with the
     // phases that consume them; listing proves the parser against real discs).
     // NOTE: MODELS/GTA3_1.IMG is a byte-duplicate of GTA3.IMG (DVD seek layout) - skip it.
     private static readonly string[] ImgFiles =
@@ -119,10 +119,10 @@ public static class ConvertPipeline
             DefaultOn: true, Available: true, Steps: new[]
             {
                 new Step("Extract audio inputs", "",           0, StepExtractAudioInputs),
-                new Step("Bake SFX pool",        "audio-sfx",  1, StepBakeSfx),
+                new Step("Bake SFX pool",        "audio-sfx",  2, StepBakeSfx),
                 new Step("Bake ambience zones",  "audio-amb",  1, StepBakeAmbience),   // the zone table
-                new Step("Bake ambience tracks", "audio-ambx", 1, StepBakeAmbienceTracks), // the audio behind it
-                new Step("Bake radio",           "audio-radio",1, StepBakeRadio),      // slow: ~1.5 GB of stations
+                new Step("Bake ambience tracks", "audio-ambx", 3, StepBakeAmbienceTracks), // the audio behind it. v2: the ADPCM frame grid starts 4 bytes after the element header - decoding from the old offset produced noise
+                new Step("Bake radio",           "audio-radio",3, StepBakeRadio),      // slow: ~1.5 GB of stations. v2: same 4-byte stream-data offset fix
                 new Step("Bake load tunes",      "audio-tune", 1, StepBakeLoadtune),   // non-fatal (only SFX aborts the section)
             }),
         new("vehicles", "Vehicles",
@@ -143,8 +143,8 @@ public static class ConvertPipeline
             DefaultOn: true, Available: true, Steps: new[]
             {
                 new Step("Extract cutscene inputs", "",          0, StepExtractCutsceneInputs),
-                new Step("Bake cutscene models",    "cutscene",  2, StepBakeCutscene),   // cam + csplay/CJ (models degrade)
-                new Step("Bake cutscene audio",     "cutaudio",  2, StepBakeCutAudio),   // v2: the voice track now comes off the disc as ADPCM
+                new Step("Bake cutscene models",    "cutscene",  7, StepBakeCutscene),   // cam + csplay/CJ (models degrade). v3: PS2-native skin position scale fixed (actors were 8x) - bump forces a re-bake past the incremental manifest
+                new Step("Bake cutscene audio",     "cutaudio",  5, StepBakeCutAudio),   // v2: the voice track now comes off the disc as ADPCM. v3: same 4-byte stream-data offset fix. v4: the take is chosen by subtitle timing, not by length (length picked the wrong scene)
             }),
         new("interiors", "Interiors",
             "Interior world (safehouses, shops, missions) baked from GTA_INT.IMG + the " +
@@ -171,9 +171,9 @@ public static class ConvertPipeline
             DefaultOn: true, Available: true, Steps: new[]
             {
                 new Step("Extract ped inputs", "",     0, StepExtractPedInputs),  // PLAYER.IMG + PED.IFP (+ gta3.img)
-                new Step("Bake hero (CJ)",     "hero", 2, StepBakeHero),          // FATAL: no hero = no playable game
-                new Step("Bake player char",   "char", 2, StepBakeChar),          // non-fatal
-                new Step("Bake pedestrians",   "peds", 2, StepBakePeds),          // non-fatal (ambient peds are PS2-native)
+                new Step("Bake hero (CJ)",     "hero", 5, StepBakeHero),          // FATAL: no hero = no playable game
+                new Step("Bake player char",   "char", 4, StepBakeChar),          // non-fatal
+                new Step("Bake pedestrians",   "peds", 5, StepBakePeds),          // non-fatal (ambient peds are PS2-native). v3: same 8x position-scale fix as the cutscene actors
             }),
         new("effects", "World effects (grass, breakables)",
             "The grass blades the tuft renderer scatters over lawns and fields, and the " +
@@ -349,13 +349,13 @@ public static class ConvertPipeline
 
     private static bool StepStage(ConvertContext cx)
     {
-        
+        // phase 1: the simple layer only - files the engine reads as-is.
         Directory.CreateDirectory(cx.OutDir);
         var stage = new (string tmp, string outRel)[]
         {
             ("data/timecycP.dat",      Path.Combine("world", "timecycP.dat")),
             ("data/script/main.scm",   Path.Combine("script", "main.scm")),
-            ("data/handling.cfg",      Path.Combine("vehicles", "handling.cfg")),   
+            ("data/handling.cfg",      Path.Combine("vehicles", "handling.cfg")),   // phase 3 vehicle baking input
         };
         int staged = 0;
         foreach (var (tmp, outRel) in stage)
@@ -381,7 +381,7 @@ public static class ConvertPipeline
         if (s_python is null)
         {
             cx.Log("   python not found - step skipped (install Python 3 to enable)");
-            return true;                       
+            return true;                       // phase 1: soft-skip; phase 4 embeds python
         }
         string? sc = PythonRunner.FindScript(script);
         if (sc is null) { cx.Log($"   {script} not found - step skipped"); return true; }
@@ -398,7 +398,7 @@ public static class ConvertPipeline
     //
     // Unlike every other section these two inputs come from the demake itself, not from
     // the disc, so they ship beside the bakers in content/. The disc's own main.scm is
-    // the original game's compiled script in a format this engine does not run; it is staged as a
+    // a compiled script in a format this engine does not run; it is staged as a
     // plain file for reference only. The engine reads script/scripts.scm with NO fallback
     // to any other name, so without this step the script machine boots with zero opcodes
     // and every mission trigger, debug Scripts entry and on-screen hint is silently dead.
@@ -572,8 +572,34 @@ public static class ConvertPipeline
         return true;                                   // never abort: the game plays without it
     }
 
+    // The station packs are ~2 GB and only this step wants them, so they are staged
+    // HERE rather than in the shared audio-input step - a convert with the radio
+    // switched off never pays for them. Without this the baker died on the first
+    // station it could not open (ADVERTS.PAK), which is why a full convert produced
+    // "0 stations on the dial": AUDIO/STREAMS/AMBIENCE.PAK was the only pack staged.
+    private static bool StageStationPacks(ConvertContext cx)
+    {
+        string gameRoot = Path.Combine(cx.TempDir, "game");
+        int got = 0, reuse = 0;
+        long mb = 0;
+        foreach (var e in cx.Iso!.ListAll())
+        {
+            if (e.IsDirectory) continue;
+            string p = e.Path;
+            if (!p.StartsWith("AUDIO/STREAMS/") || !p.EndsWith(".PAK")) continue;
+            string dest = Path.Combine(gameRoot, p.Replace('/', Path.DirectorySeparatorChar));
+            if (File.Exists(dest) && new FileInfo(dest).Length == e.Size) { ++reuse; continue; }
+            cx.Iso.ExtractTo(e, dest);
+            ++got; mb += e.Size / (1024 * 1024);
+            if (cx.Ct.IsCancellationRequested) return false;
+        }
+        cx.Log($"   {got} station pack(s) staged, {reuse} reused ({mb} MB)");
+        return got > 0 || reuse > 0;
+    }
+
     private static bool StepBakeRadio(ConvertContext cx)
     {
+        if (!StageStationPacks(cx)) { cx.Log("   no station packs on this disc - radio skipped"); return true; }
         string elf = Path.Combine(cx.TempDir, "game", "SLES_525.41");
         var extra = new List<string> { Path.Combine(cx.OutDir, "audio", "radio") };
         if (File.Exists(elf)) { extra.Add("--elf"); extra.Add(elf); }
@@ -1002,7 +1028,7 @@ public static class ConvertPipeline
     // Stage the audio inputs into TempDir/game (the same SA_ROOT tree world/HUD/interiors
     // use): AUDIO/CONFIG/*.DAT (bank + pak lookups, a few KB) + the baked SFX paks + the
     // ambience map DATA/MAPS/AUDIOZON.IPL + AUDIO/STREAMS/AMBIENCE.PAK (the one ambience
-    
+    // stream; the other ~2 GB of STREAMS is radio / speech / cutscene -> deferred to phase 4).
     // stageId "" => always runs with the section (writes into TempDir, not data/).
     private static bool StepExtractAudioInputs(ConvertContext cx)
     {
@@ -1031,7 +1057,7 @@ public static class ConvertPipeline
     // Bake the SFX pool -> data/audio/sfx.bin (PRIMARY). PS2 disc bodies are already native
     // Sony PS-ADPCM (VAG), so audio_bake passes them straight into the engine's VAG pool --
     // no transcode. QUARRY_SFX_NO_JINGLE keeps the bake on the Python stdlib (the BEATS
-    
+    // mission jingle is radio territory, phase 4). This is the one audio step that ABORTS the
     // section on failure. SA_ROOT points the patched baker at the disc extract.
     private static bool StepBakeSfx(ConvertContext cx)
     {
@@ -1045,7 +1071,7 @@ public static class ConvertPipeline
         var env = new Dictionary<string, string>
         {
             ["SA_ROOT"]              = saRoot,
-            ["QUARRY_SFX_NO_JINGLE"] = "1",   
+            ["QUARRY_SFX_NO_JINGLE"] = "1",   // BEATS mission jingle -> radio pass (phase 4); keeps sfx stdlib-only
         };
 
         string? sc = PythonRunner.FindScript("audio_bake.py");
@@ -1077,7 +1103,7 @@ public static class ConvertPipeline
         if (sc is null) { cx.Log("   ambience_bake.py not found - skipped"); return true; }
         cx.Log($"   -> ambience_bake.py {cx.OutDir}");
         if (!PythonRunner.Run(s_python, sc, new[] { cx.OutDir }, cx.Log, env, null, cx.Ct, cx.OnPercent))
-            cx.Log("   ambience_bake.py returned non-zero - skipped (ffmpeg/streams optional)");
+            cx.Log("   ambience_bake.py returned non-zero - skipped (ffmpeg/streams optional, phase 4)");
         return true;   // ambience never aborts the section
     }
 
@@ -1215,9 +1241,12 @@ public static class ConvertPipeline
     }
 
     // boot.txt sits NEXT TO the EBOOT, not inside data/: it is read before the data
-    // folder is known. It carries the boot-time switches and the multiplayer master
-    // server, which the engine cannot sensibly guess. Written only when absent, so a
-    // re-convert never overwrites a host someone pointed at their own server.
+    // folder is known. It carries the boot-time switches. Written only when absent, so a
+    // re-convert never overwrites settings someone changed.
+    //
+    // master_host is the project's own master/relay server. It ships filled in on purpose:
+    // multiplayer does not work without it, and the engine only brings the net stack up
+    // when this field is set. Point it elsewhere to run your own.
     private const string DefaultBootCfg = """
         me=0
         noaudio=0
@@ -1546,13 +1575,16 @@ public static class ConvertPipeline
         { cx.Log("   cutaudio_bake.py returned non-zero - skipped (audio/subtitles deferred, non-fatal)"); return true; }
         cx.Log($"   cutscene audio + subtitles baked into {cutOut}");
 
-        // The voice track itself is a stream, not part of CUTS.IMG. It has no name on
-        // the disc, only a length, so it is picked by matching the take the engine
-        // plays - the same match that identified it: 100.4 s against a documented
-        // 100.7. cutaudio_bake above still writes the camera track and the subtitles.
+        // The voice track is a stream, not part of CUTS.IMG, and carries no name on the
+        // disc. Picking it by LENGTH was wrong: the CUTSCENE pack holds 141 elements
+        // with closely spaced durations, and the nearest to the animation's 100.7 s was
+        // a different scene. The subtitles cutaudio_bake just wrote say exactly when
+        // someone speaks, so the baker matches the element that is loud in those windows
+        // and quiet between them; length remains the fallback.
         StreamStep(cx,
                    new[] { Path.Combine(cx.TempDir, "_streams_scratch"),
-                           "--intro", Path.Combine(cutOut, "intro1a.adp"), "100.7" },
+                           "--intro", Path.Combine(cutOut, "intro1a.adp"), "100.7",
+                           "--intro-subs", Path.Combine(cutOut, "intro1a_subs.bin") },
                    "cutscene voice", false);
         return true;
     }

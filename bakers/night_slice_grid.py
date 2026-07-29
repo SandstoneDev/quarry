@@ -10,7 +10,7 @@ the models in that order, so we slice night_tess sequentially per submesh, then 
 tile concatenate the night of `sorted(used_models)` (build_grid_pmaps's order).
 
 Usage: python night_slice_grid.py <in_tess.pmap> <night_tess.bin> <out_dir> [tile=900]
-       (out_dir should be the data dir that already holds the region_*.pmap)
+ (out_dir should be the data dir that already holds the region_*.pmap)
 """
 import os
 import struct

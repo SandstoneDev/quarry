@@ -56,7 +56,7 @@ def main():
          "", out])
     run([py, os.path.join(TOOLS, "col_bake.py"), "regions", out])
     run([py, os.path.join(TOOLS, "lod_bake_regions.py"), out])
-    run([py, os.path.join(TOOLS, "road_sidecar_bake.py"), out])  # .road flags (Z-bias sub-pass)
+    run([py, os.path.join(TOOLS, "road_sidecar_bake.py"), out])  #.road flags (Z-bias sub-pass)
     run([py, os.path.join(TOOLS, "dyn_sidecar_bake.py"), out])   # knockable props
     run([py, os.path.join(TOOLS, "pmap_lz4.py"), "--dir", out])
     print("BAKE COMPLETE:", out)

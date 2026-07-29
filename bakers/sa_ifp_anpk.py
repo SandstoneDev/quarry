@@ -5,13 +5,13 @@ RW chunk-tree form used by cutscenes, with UNCOMPRESSED float keyframes and bone
 by NAME (not a numeric tag).
 
 Chunk tree (each chunk = fourcc[4] + u32 size + body; bodies 4-byte aligned):
-  ANPK { INFO(u32 count, char name[24])
-         per actor: NAME(str) + DGAN { INFO(u32 numObjects)
-             per bone: CPAN { ANIM(char bone[24], f32 ?, u32 numFrames, 12 pad)
-                              + KRxx keyframes } } }
+ ANPK { INFO(u32 count, char name[24])
+ per actor: NAME(str) + DGAN { INFO(u32 numObjects)
+ per bone: CPAN { ANIM(char bone[24], f32 ?, u32 numFrames, 12 pad)
+ + KRxx keyframes } } }
 Keyframes:
-  KRT0 = 32 B/frame: f32 quat[4] (x,y,z,w) + f32 trans[3] + f32 time
-  KR00 = 20 B/frame: f32 quat[4]               + f32 time
+ KRT0 = 32 B/frame: f32 quat[4] (x,y,z,w) + f32 trans[3] + f32 time
+ KR00 = 20 B/frame: f32 quat[4] + f32 time
 
 Returns {block, anims:[ {name, seqs:[ {bone, keyType, numFrames, kf(bytes)} ]} ]}.
 """

@@ -3,28 +3,28 @@
 File layout (verified against ENGLISH/FRENCH/GERMAN/ITALIAN/SPANISH.GXT,
 87 tables / 6739 keys each):
 
-    'TABL'                                   (4 bytes magic)
-    u32 dir_size  (== 12 * ntables)
-    TableDirEntry[ntables] {
-        char[8] name   (NUL-padded)
-        u32     file_off
-    }
+ 'TABL' (4 bytes magic)
+ u32 dir_size (== 12 * ntables)
+ TableDirEntry[ntables] {
+ char[8] name (NUL-padded)
+ u32 file_off
+ }
 
 Each sub-table lives at its file_off. The first table's body begins directly
 with 'TKEY'; every subsequent table is preceded by an 8-byte name header
 (the table name again, NUL-padded). Rule:
-    tk = file_off       if data[file_off:file_off+4] == b'TKEY'
-    tk = file_off + 8   otherwise (skip the duplicate name header)
+ tk = file_off if data[file_off:file_off+4] == b'TKEY'
+ tk = file_off + 8 otherwise (skip the duplicate name header)
 
-    'TKEY'                                   (4 bytes magic)
-    u32 key_size  (== 12 * nkeys)
-    KeyEntry[nkeys] {
-        u32     data_off   (OFFSET FIRST; byte offset relative to TDAT body)
-        char[8] name       (NUL-padded; keys sorted ASCII-ascending)
-    }
-    'TDAT'                                   (4 bytes magic)
-    u32 dat_size
-    <dat_size bytes of UTF-16LE strings, each u16 0x0000 terminated>
+ 'TKEY' (4 bytes magic)
+ u32 key_size (== 12 * nkeys)
+ KeyEntry[nkeys] {
+ u32 data_off (OFFSET FIRST; byte offset relative to TDAT body)
+ char[8] name (NUL-padded; keys sorted ASCII-ascending)
+ }
+ 'TDAT' (4 bytes magic)
+ u32 dat_size
+ <dat_size bytes of UTF-16LE strings, each u16 0x0000 terminated>
 
 Strings are stored contiguously but in a different order than the (sorted)
 key list, so the per-key data offsets are preserved verbatim to guarantee a
@@ -32,8 +32,8 @@ byte-exact round-trip. Table bodies are aligned to 4 bytes (0 or 2 zero
 padding bytes between tables).
 
 decode(data) -> Gxt: an ordered dict {table_name: [(key, string), ...]}
-                     in key order, carrying the offset metadata for re-encode.
-encode(gxt)  -> bytes: byte-exact reconstruction of the original file.
+ in key order, carrying the offset metadata for re-encode.
+encode(gxt) -> bytes: byte-exact reconstruction of the original file.
 """
 
 from ._io import R, W
@@ -68,13 +68,13 @@ def _pad8(s):
 class Gxt(dict):
     """Ordered {table_name: [(key, string), ...]} with re-encode metadata.
 
-    Public mapping interface: gxt[table_name] -> list of (key, str) tuples in
-    the original (ASCII-sorted) key order.
+ Public mapping interface: gxt[table_name] -> list of (key, str) tuples in
+ the original (ASCII-sorted) key order.
 
-    Internal (per table, parallel to the entry list):
-      _offsets[table_name]   -> list of data offsets, one per key entry
-      _has_header[table_name]-> bool, whether an 8-byte name header precedes it
-    """
+ Internal (per table, parallel to the entry list):
+ _offsets[table_name] -> list of data offsets, one per key entry
+ _has_header[table_name]-> bool, whether an 8-byte name header precedes it
+ """
 
     def __init__(self):
         super().__init__()
@@ -141,11 +141,11 @@ def decode(data):
 def encode(gxt, rebuild=False):
     """Serialise a Gxt back to bytes.
 
-    rebuild=False (default): byte-exact - preserves the original per-key data offsets
-    (only valid if no string length changed). rebuild=True: recompute all offsets in
-    key order, so edited/translated strings of any length produce a valid (not
-    byte-exact) GXT the engine reads fine.
-    """
+ rebuild=False (default): byte-exact - preserves the original per-key data offsets
+ (only valid if no string length changed). rebuild=True: recompute all offsets in
+ key order, so edited/translated strings of any length produce a valid (not
+ byte-exact) GXT the engine reads fine.
+ """
     table_bodies = []  # parallel to table order in gxt
     names = list(gxt.keys())
 

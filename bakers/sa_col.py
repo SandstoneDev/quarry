@@ -9,20 +9,20 @@ https://gtamods.com/wiki/Collision_File .
 A .col *library* (e.g. `LAs_0.col`, stored as an IMG entry) is a back-to-back
 sequence of ColModels, each prefixed with a 32-byte FileHeader:
 
-    char  fourcc[4]   "COLL"|"COL2"|"COL3"|"COL4"
-    u32   size        bytes AFTER the 8-byte FileInfo (so entry = size + 8)
-    char  modelName[22]
-    u16   modelId
+ char fourcc[4] "COLL"|"COL2"|"COL3"|"COL4"
+ u32 size bytes AFTER the 8-byte FileInfo (so entry = size + 8)
+ char modelName[22]
+ u16 modelId
 
 Version bodies (offsets in V2+ are measured from the fourcc, +4 trick below):
 
-  V1 (COLL): sequential - bounds, then count-prefixed sphere/line/box/vert/face
-  V2/3/4   : header with counts+flags+section offsets, then one packed blob.
-             vertices are int16/128 (CompressedVector); faces are u16 idx + 2x u8.
+ V1 (COLL): sequential - bounds, then count-prefixed sphere/line/box/vert/face
+ V2/3/4 : header with counts+flags+section offsets, then one packed blob.
+ vertices are int16/128 (CompressedVector); faces are u16 idx + 2x u8.
 
 Usage:
-    python sa_col.py                 # self-test: index+decode every .col in gta3.img
-    python sa_col.py <modelName>     # decode one model, dump stats
+ python sa_col.py # self-test: index+decode every .col in gta3.img
+ python sa_col.py <modelName> # decode one model, dump stats
 """
 import os
 import struct
@@ -135,8 +135,8 @@ def _decode_v1(cm, buf, base):
 
 def _decode_v234(cm, buf, ver):
     """COL2/3/4: offset-based. Offsets are relative to fourcc; element absolute
-    offset within the entry = fileOffset + 4 (the 4 fourcc bytes are folded into
-    the header size in the reverse, so we add them back here)."""
+ offset within the entry = fileOffset + 4 (the 4 fourcc bytes are folded into
+ the header size in the reverse, so we add them back here)."""
     p = 32  # version Header starts right after the 32-byte FileHeader
     # bounds TBounds(40): box CBoundingBox(min,max)=24 then CSphere(center,radius)=16
     cm.bmin = struct.unpack_from("<3f", buf, p)
@@ -211,7 +211,7 @@ def parse_library(blob):
 
 def build_index(img):
     """name(lower) -> ColModel, scanning every .col library in the IMG.
-    Later libraries win on name collision (rare)."""
+ Later libraries win on name collision (rare)."""
     idx = {}
     libs = img.names(".col")
     for lib in libs:

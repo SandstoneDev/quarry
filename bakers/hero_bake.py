@@ -12,16 +12,16 @@ global indices; skin + skeleton from tools/sa_skin; clips from tools/sa_ifp;
 textures via gvcslib.sa_txd_d3d9 + psp_tex (same T8 path as char_bake).
 
 hero.bin layout (little-endian):
-  'HRO1' | u16 numBones | u16 numClips | u16 numVerts | u16 numSub | u16 numTex | u16 pad
-  bones[numBones]:  s16 parent | s16 nodeId | f32 bindQuat[4] | f32 bindPos[3] | f32 invBind[16]
-  verts[numVerts]:  f32 pos[3] | f32 uv[2] | u32 rgba8888 | u8 boneIdx[4] | f32 boneW[4]
-  submeshes[numSub]: s16 tex | u16 pad | u32 idxFirst | u32 idxCount   (indices are GLOBAL vert idx)
-  indices[Σ idxCount]: u16
-  textures[numTex]:  u16 tw,th | u16 numLevels|alpha<<8 | u16 clutEntries | u32 texelLen | u32 clutLen | <texel><clut>
-  clips[numClips]:  char name[24] | f32 dur | u16 numTracks | u16 pad
-     track:  s16 bone | u8 hasTrans | u8 pad | u16 numKeys
-             key: s16 q[4] | s16 time | (s16 t[3] if hasTrans)
-  (dequant: quat /4096, trans /1024, time /60s)
+ 'HRO1' | u16 numBones | u16 numClips | u16 numVerts | u16 numSub | u16 numTex | u16 pad
+ bones[numBones]: s16 parent | s16 nodeId | f32 bindQuat[4] | f32 bindPos[3] | f32 invBind[16]
+ verts[numVerts]: f32 pos[3] | f32 uv[2] | u32 rgba8888 | u8 boneIdx[4] | f32 boneW[4]
+ submeshes[numSub]: s16 tex | u16 pad | u32 idxFirst | u32 idxCount (indices are GLOBAL vert idx)
+ indices[Σ idxCount]: u16
+ textures[numTex]: u16 tw,th | u16 numLevels|alpha<<8 | u16 clutEntries | u32 texelLen | u32 clutLen | <texel><clut>
+ clips[numClips]: char name[24] | f32 dur | u16 numTracks | u16 pad
+ track: s16 bone | u8 hasTrans | u8 pad | u16 numKeys
+ key: s16 q[4] | s16 time | (s16 t[3] if hasTrans)
+ (dequant: quat /4096, trans /1024, time /60s)
 """
 import math
 import os
@@ -52,8 +52,8 @@ DEPLOY = ""  # game loads assetDir/ (data/) first
 
 def _decode_txd(raw):
     """Decode a ped TXD to {name: (w,h,rgba)}. Picks the codec by the RW device id
-    (TXD STRUCT: u16 numTex, u16 deviceId): 6 = PS2-native (sa_txd), else D3D8/9
-    (sa_txd_d3d9). Lets one hero_bake serve both the PS2 disc and the PC dev loop."""
+ (TXD STRUCT: u16 numTex, u16 deviceId): 6 = PS2-native (sa_txd), else D3D8/9
+ (sa_txd_d3d9). Lets one hero_bake serve both the PS2 disc and the PC dev loop."""
     raw = bytes(raw)
     devid = struct.unpack_from("<H", raw, 26)[0] if len(raw) >= 28 else 0
     prim, alt = (sa_txd, sa_txd_d3d9) if devid == 6 else (sa_txd_d3d9, sa_txd)
@@ -140,7 +140,7 @@ def mat3_T(A):          # transpose = inverse for a rotation matrix
 
 def retarget_quat(qf, cs_bind, cj_bind):
     # qf = raw ANPK quat (x,y,z,w). The runtime uses the CONJUGATE (baked) quat, so the anim
-    # local matrix cssmoke gets is A = std_quat_to_mat3(conj(qf))  [std_quat_to_mat3 is the exact
+    # local matrix cssmoke gets is A = std_quat_to_mat3(conj(qf)) [std_quat_to_mat3 is the exact
     # inverse of mat3_to_quat - same convention as the sa_skin frame rot]. Re-express the same
     # pose on CJ's bind: A' = A * inv(cs_bind) * cj_bind (verified 0-deg round-trip at rest),
     # then back to a baked quat via mat3_to_quat.
@@ -188,10 +188,10 @@ def _strip_to_tris(idx):
 
 def _decode_skin(blob):
     """Skin + skeleton for one skinned DFF, routed by platform: PS2-native cutscene
-    actors / ambient peds -> tools/ps2skin (native VIF skin); PC / platform-neutral
-    skinned models (player.img: CJ, csplay, clothing) -> tools/sa_skin.  Both return
-    {frames, nodes, geoms:[{nvert,numBones,numUsed,maxW,used,boneIdx,boneW,invBind}]},
-    so bake_model consumes either unchanged."""
+ actors / ambient peds -> tools/ps2skin (native VIF skin); PC / platform-neutral
+ skinned models (player.img: CJ, csplay, clothing) -> tools/sa_skin. Both return
+ {frames, nodes, geoms:[{nvert,numBones,numUsed,maxW,used,boneIdx,boneW,invBind}]},
+ so bake_model consumes either unchanged."""
     if ps2skin.is_native_skinned(blob):
         return ps2skin.decode(blob)
     return sa_skin.decode(blob)
@@ -199,7 +199,7 @@ def _decode_skin(blob):
 
 def parse_geometry(blob):
     """Return (positions, uvs, colors, submeshes[(matIndex,[tris...])], material_names).
-    All vertex indices are GLOBAL (geometry order, == sa_skin order)."""
+ All vertex indices are GLOBAL (geometry order, == sa_skin order)."""
     if ps2skin.is_native_skinned(blob):
         # PS2-native skinned actor/ped: uninstance the VIF geometry + skin through
         # tools/ps2skin (shares ONE weld with _decode_skin so the vertex orders align).
@@ -217,7 +217,7 @@ def parse_geometry(blob):
     if flags & RPGEOMETRY_PRELIT:
         for i in range(nvert):
             r, g, b, a = struct.unpack_from("<4B", blob, o+i*4)
-            colors[i] = (r << 24)|(g << 16)|(b << 8)|a
+            colors[i] = r | (g << 8) | (b << 16) | (0xFF << 24)   # R in the low byte, as the runtime reads it
         o += nvert*4
     nsets = _num_tex_sets(flags)
     uvs = [(0.0, 0.0)]*nvert
@@ -276,7 +276,7 @@ def parse_geometry(blob):
 
 def _compute_normals(positions, tri_raw, nvert):
     """Per-vertex normals = area-weighted average of adjacent face normals (used
-    only if the DFF morph target carries no normals; SA peds usually do)."""
+ only if the DFF morph target carries no normals; SA peds usually do)."""
     acc = [[0.0, 0.0, 0.0] for _ in range(nvert)]
     for (v0, v1, v2, _m) in tri_raw:
         if v0 >= nvert or v1 >= nvert or v2 >= nvert:
@@ -349,12 +349,12 @@ CUT_NAME2ID = {
 
 def worldspace_retarget_tracks(a, id2bone, bones, numBones):
     """WORLD-SPACE self-referential retarget for csplay (CJ hero rig, no cutscene DFF).
-    Per-bone local-delta retargeting broke the arms: the arm chain hangs off Spine2, whose
-    bind differs ~178deg from the cutscene skeleton, and a per-bone delta doesn't preserve
-    the COMPOSED world orientation. Instead: (1) build the anim's world-space deformation of
-    each bone RELATIVE TO ITS OWN FRAME 0 (frame-independent, no external reference bind);
-    (2) apply that world deformation to CJ's bind world; (3) convert back to a CJ-local rotation.
-    Frame 0 -> exactly CJ's bind pose. Returns (tracks, dur)."""
+ Per-bone local-delta retargeting broke the arms: the arm chain hangs off Spine2, whose
+ bind differs ~178deg from the cutscene skeleton, and a per-bone delta doesn't preserve
+ the COMPOSED world orientation. Instead: (1) build the anim's world-space deformation of
+ each bone RELATIVE TO ITS OWN FRAME 0 (frame-independent, no external reference bind);
+ (2) apply that world deformation to CJ's bind world; (3) convert back to a CJ-local rotation.
+ Frame 0 -> exactly CJ's bind pose. Returns (tracks, dur)."""
     import struct as _st
     # gather each CJ bone's source anim (conjugated-quat matrices + times + translation)
     seq_by_bone = {}
@@ -416,13 +416,13 @@ def worldspace_retarget_tracks(a, id2bone, bones, numBones):
 
 def smooth_skin_weights(GV, radius=0.05, strength=0.7, lo=0):
     """Spatially smooth per-vertex bone weights: the gameplay CJ mesh is ~41% single-bone
-    (rigid), which folds into blocky joints at extreme cutscene poses. Blend each vertex's
-    weights with its neighbours within `radius` (linear falloff), mix `strength` toward the
-    smoothed set, keep the top 4 bones, renormalise. Cutscene CJ only - cssmoke is already
-    smooth and the gameplay/ambient peds must stay byte-identical.
-    `lo`: only verts with index >= lo are smoothed (and only against each other) - used for the
-    real cutscene CJ to soften the gameplay BODY (torso arms) without touching the already-smooth
-    cs_head face verts (would blur the working lip-sync) or cs_hands."""
+ (rigid), which folds into blocky joints at extreme cutscene poses. Blend each vertex's
+ weights with its neighbours within `radius` (linear falloff), mix `strength` toward the
+ smoothed set, keep the top 4 bones, renormalise. Cutscene CJ only - cssmoke is already
+ smooth and the gameplay/ambient peds must stay byte-identical.
+ `lo`: only verts with index >= lo are smoothed (and only against each other) - used for the
+ real cutscene CJ to soften the gameplay BODY (torso arms) without touching the already-smooth
+ cs_head face verts (would blur the working lip-sync) or cs_hands."""
     n = len(GV); pos = [gv[0] for gv in GV]
     cell = radius; r2 = radius * radius
     grid = {}
@@ -465,10 +465,10 @@ def smooth_skin_weights(GV, radius=0.05, strength=0.7, lo=0):
 
 def bake_model(arg="fam1", clips=None, emit_clst=True, cut=None):
     """Bake one skinned ped into an HRO2 byte stream (multi-ped reuse: ped_bake.py
-    concatenates several of these into peds.bin).  emit_clst=False drops the GE-skin
-    cluster section (ambient peds stay on the CPU LBS path -> ~50KB/model less RAM).
-    cut = {img, actor, anpk}: bake a CUTSCENE actor (DFF from cutscene.img, one ANPK
-    clip from cuts.img, bones mapped by index, no stand-up) instead of a PED.IFP ped."""
+ concatenates several of these into peds.bin). emit_clst=False drops the GE-skin
+ cluster section (ambient peds stay on the CPU LBS path -> ~50KB/model less RAM).
+ cut = {img, actor, anpk}: bake a CUTSCENE actor (DFF from cutscene.img, one ANPK
+ clip from cuts.img, bones mapped by index, no stand-up) instead of a PED.IFP ped."""
     global CLIPS
     saved_clips = CLIPS
     if clips is not None:
@@ -610,6 +610,12 @@ def bake_model(arg="fam1", clips=None, emit_clst=True, cut=None):
         t = None
         if entry is not None:
             w, h, rgba = entry
+            # Leave alpha_mode alone. b785 forced it to 0 for characters on the theory that
+            # a transparent region on a character texture is unused atlas; hardware said
+            # otherwise - CJ's hands went BLACK, which only happens if those pixels are a
+            # genuine cutout that the alpha test is supposed to discard. The 51.7% figure is
+            # real cutout area, not waste, and its palette holds only 0 and 224 with nothing
+            # in between, so the test at 0x40 cuts exactly where the artist intended.
             try: t = psp_tex.author_psp_texture(rgba, w, h, fmt="T8", mipmaps=True)
             except Exception: t = None
         ti = len(tex_list) if t is not None else -1
@@ -624,8 +630,11 @@ def bake_model(arg="fam1", clips=None, emit_clst=True, cut=None):
     # skin under it, full body stays intact (no holes ever). Fully-covered parts
     # (legs under jeans, feet under sneakers) are dropped from CJ_COMPONENTS.
     INFLATE = {"vest.dff": 0.018}      # metres pushed out along the bind normal
+    # An inflated shell also inherits the weights of the shell it sits on (see below).
+    WELD_WEIGHTS = {"vest.dff": "torso.dff"}
 
     GV = []          # global verts: (pos3, uv2, color, bidx4, bw4)
+    comp_span = {}   # dffname -> (firstGVIndex, endGVIndex), for the shell weld below
     body_vstart = None   # cjCut: GV index where the gameplay BODY comps begin (after cs_head/cs_hands)
     # bake fat/muscle morph deltas for the gameplay CJ AND the real cutscene CJ (cjCut) so the
     # chosen body carries into cutscenes. cs_head/cs_hands + the body comps all have 3 clumps.
@@ -679,6 +688,7 @@ def bake_model(arg="fam1", clips=None, emit_clst=True, cut=None):
             comp_nid = [_cn[b][0] for b in range(len(_cn))]
         txd = _decode_txd(img.extract(txdname))
         vbase = len(GV)
+        comp_span[dffname] = None            # filled in after this component's verts are appended
         if remap_nodeid and body_vstart is None and not dffname.startswith("cs_"):
             body_vstart = vbase              # first non-cutscene (body) component -> smooth from here
 
@@ -690,6 +700,7 @@ def bake_model(arg="fam1", clips=None, emit_clst=True, cut=None):
             GV.append((positions[v], uvs[v], colors[v], bidx, cgeo["boneW"][v], normals[v]))
             if want_morph:
                 GV_morph.append(mdelta[v] if mdelta else ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
+        comp_span[dffname] = (vbase, len(GV))
         for (matidx, tris) in submeshes:
             if texname:
                 ti = author(txd, texname, txdname)
@@ -716,6 +727,33 @@ def bake_model(arg="fam1", clips=None, emit_clst=True, cut=None):
         smooth_skin_weights(GV, radius=0.065, strength=0.80, lo=_lo)
         _r1 = sum(1 for gv in GV[_lo:] if sum(1 for w in gv[4] if w > 0.01) == 1)
         print("  weight-smooth: single-bone verts %d -> %d (of %d, lo=%d)" % (_r0, _r1, nvert - _lo, _lo))
+
+    # An INFLATED shell must deform EXACTLY like the body under it, or the 18 mm gap that
+    # keeps it outside only holds in the bind pose. The vest and the torso share their
+    # geometry (both 646 triangles over the same bones) but their weights are not identical
+    # - measured on the baked actor, 342 of 405 matching vertex pairs differed, e.g. 0.824
+    # against 0.815 on the same bone - and the smoothing pass above treats the two shells
+    # independently, which widens the split. Once animated they diverge by more than the gap,
+    # the torso pokes through the vest, and CJ shows dark hairline cracks that appear as the
+    # the two shells move as one, so the offset survives every pose.
+    for shell, under in WELD_WEIGHTS.items():
+        a = comp_span.get(shell); c = comp_span.get(under)
+        if not a or not c:
+            continue
+        moved = 0
+        for vi in range(a[0], a[1]):
+            q = GV[vi][0]
+            best = None; bd = 1e9
+            for vj in range(c[0], c[1]):
+                r = GV[vj][0]
+                d = (q[0]-r[0])**2 + (q[1]-r[1])**2 + (q[2]-r[2])**2
+                if d < bd: bd = d; best = vj
+            if best is None:
+                continue
+            pos, uv, color, _bi, _bw, nrm = GV[vi]
+            GV[vi] = (pos, uv, color, GV[best][3], GV[best][4], nrm)
+            moved += 1
+        print("  shell weld: %s follows %s (%d verts)" % (shell, under, moved))
 
     # ==== GE hardware-skinning cluster partition (ge_hw_skinning_design.md) ====
     # The PSP GE skins in hardware but with <=8 bone matrices per draw; the SA rig is ~37
@@ -1013,7 +1051,7 @@ def bake_model(arg="fam1", clips=None, emit_clst=True, cut=None):
     # emit
     buf = bytearray()
     # upMode: 0 = already Z-up / no stand-up (CJ player.img components);
-    #         1 = X-up authored -> runtime stands it via (x,y,z)->(-z,y,x) (gta3.img peds).
+    # 1 = X-up authored -> runtime stands it via (x,y,z)->(-z,y,x) (gta3.img peds).
     # Cutscene actors (cutscene.img DFF) are authored Z-up like the player model, NOT X-up like
     # streamed gta3.img peds - measured from the baked invBind rest positions: the tallest bind
     # extent is along mesh +Z (~1.88m = human height), so upMode 0 (identity) stands them. upMode 1

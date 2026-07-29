@@ -1,27 +1,27 @@
 """the source game PC (Direct3D 9) TXD decoder -> RGBA8888.
 
 PC SA textures are RW "D3D9 native" rasters (platform id 9): DXT1/3/5 block
-compression, raw 16/32-bit, or 8-bit palette.  The PSP GE has no DXT and a 2 MB
+compression, raw 16/32-bit, or 8-bit palette. The PSP GE has no DXT and a 2 MB
 VRAM budget, so we decode everything to RGBA8888 here and hand it to psp_tex
 (swizzle + T4/T8 CLUT + mipmaps) exactly like the PS2 path.
 
 D3D9 TexNative STRUCT (after the 12-byte chunk header):
-    u32 platform            (== 9)
-    u32 filterAddrFlags      (low byte filter, nibbles 8-11 U addr, 12-15 V addr)
-    char name[32]
-    char mask[32]
-    u32 rasterFormat         (format nibble in bits 8-11; 0x2000 = pal8, 0x4000 = pal4)
-    u32 d3dFormat            (FOURCC 'DXTn' or a D3DFMT enum)
-    u16 width
-    u16 height
-    u8  depth                (bits per texel)
-    u8  numLevels            (mip count)
-    u8  rasterType           (== 4)
-    u8  flags                (0x01 hasAlpha, 0x02 cube, 0x04 autoMip, 0x08 compressed)
-    [ palette ]              (pal8: 256*RGBA8888; pal4: 32*RGBA8888 - BGRA on disk)
-    per mip level: u32 dataSize, u8 data[dataSize]   (level 0 first)
+ u32 platform (== 9)
+ u32 filterAddrFlags (low byte filter, nibbles 8-11 U addr, 12-15 V addr)
+ char name[32]
+ char mask[32]
+ u32 rasterFormat (format nibble in bits 8-11; 0x2000 = pal8, 0x4000 = pal4)
+ u32 d3dFormat (FOURCC 'DXTn' or a D3DFMT enum)
+ u16 width
+ u16 height
+ u8 depth (bits per texel)
+ u8 numLevels (mip count)
+ u8 rasterType (== 4)
+ u8 flags (0x01 hasAlpha, 0x02 cube, 0x04 autoMip, 0x08 compressed)
+ [ palette ] (pal8: 256*RGBA8888; pal4: 32*RGBA8888 - BGRA on disk)
+ per mip level: u32 dataSize, u8 data[dataSize] (level 0 first)
 
-Returns from decode(): { name(lower): (w, h, rgba8888_bytes) }  (R high byte),
+Returns from decode(): { name(lower): (w, h, rgba8888_bytes) } (R high byte),
 matching gvcslib.sa_txd so the export driver is format-agnostic.
 """
 from __future__ import annotations
@@ -49,7 +49,7 @@ _FOURCC_DXT5 = 0x35545844
 
 
 # --------------------------------------------------------------------------
-# chunk walk (RW: u32 type, u32 size, u32 libid ; then body)
+# chunk walk (RW: u32 type, u32 size, u32 libid; then body)
 # --------------------------------------------------------------------------
 def _find_all(b: bytes, o: int, end: int, want: int) -> List[Tuple[int, int]]:
     """Return (data_off, size) for every top-level chunk of type `want` in [o,end)."""

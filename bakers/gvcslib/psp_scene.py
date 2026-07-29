@@ -3,84 +3,84 @@ engine (``work/psp_engine``) memory-maps and feeds DIRECTLY to ``sceGu`` with
 zero conversion.
 
 This module is the **writer/reader half of the engine-side contract** defined in
-``work/psp_engine/pmap.h``.  Unlike the v1 format (which stored opaque per-model
+``work/psp_engine/pmap.h``. Unlike the v1 format (which stored opaque per-model
 blobs the engine could not consume), v2 explodes geometry into the exact shared
 GE pools ``main.c`` draws from:
 
-  * one **vertex pool**  - ``PmapVertex`` (12 B: s16 u,v · u16 color5551 · s16 x,y,z)
-  * one **index pool**   - u16, GU_INDEX_16BIT, indices are submesh-LOCAL
-  * one **texel pool**   - PSP-swizzled texel planes (from ``psp_tex``)
-  * one **clut pool**    - RGBA8888 CLUT entries (alpha last) for T4/T8
+ * one **vertex pool** - ``PmapVertex`` (12 B: s16 u,v · u16 color5551 · s16 x,y,z)
+ * one **index pool** - u16, GU_INDEX_16BIT, indices are submesh-LOCAL
+ * one **texel pool** - PSP-swizzled texel planes (from ``psp_tex``)
+ * one **clut pool** - RGBA8888 CLUT entries (alpha last) for T4/T8
 
 and tables that slice those pools: models → a run of submeshes; each submesh →
 one texture + a vertex/index slice; instances place a model with pos/quat/scale;
 a zone grid buckets instances into cells for streaming/culling.
 
-Coordinate system: **the source game native** (X east, Y north, **Z up**).  The viewer is
-Z-up, the grid tiles the horizontal **XY** plane.  Geometry, instance positions
+Coordinate system: **the source game native** (X east, Y north, **Z up**). The viewer is
+Z-up, the grid tiles the horizontal **XY** plane. Geometry, instance positions
 and quaternions pass through verbatim - no axis conversion.
 
 Two correctness fixes over the original ``pmap.h`` draft (both carried here and
 in the C structs):
-  * per-model **center** (f32×3) is stored - ``psp_mesh`` quantises positions
-    about the AABB centre, so the engine must translate by it.  world_local =
-    center + pos_i16 * scale.
-  * per-model **scale** is an f32 (the original i32 12-frac fixed underflowed to
-    0 for sub-8-metre models).
+ * per-model **center** (f32×3) is stored - ``psp_mesh`` quantises positions
+ about the AABB centre, so the engine must translate by it. world_local =
+ center + pos_i16 * scale.
+ * per-model **scale** is an f32 (the original i32 12-frac fixed underflowed to
+ 0 for sub-8-metre models).
 
 ================================================================================
 BYTE LAYOUT (all little-endian; every table/pool 16-byte aligned in-file)
 ================================================================================
 
 HEADER (0x50 = 80 bytes) @ 0
-  +0x00 char[4] magic 'PMAP'
-  +0x04 u32 version            = 2
-  +0x08 u32 file_size
-  +0x0c u32 model_count
-  +0x10 u32 model_off
-  +0x14 u32 submesh_count
-  +0x18 u32 submesh_off
-  +0x1c u32 texture_count
-  +0x20 u32 texture_off
-  +0x24 u32 instance_count
-  +0x28 u32 instance_off
-  +0x2c u32 grid_off
-  +0x30 u32 vertex_off  +0x34 u32 vertex_bytes
-  +0x38 u32 index_off   +0x3c u32 index_bytes
-  +0x40 u32 texel_off   +0x44 u32 texel_bytes
-  +0x48 u32 clut_off    +0x4c u32 clut_bytes
+ +0x00 char[4] magic 'PMAP'
+ +0x04 u32 version = 2
+ +0x08 u32 file_size
+ +0x0c u32 model_count
+ +0x10 u32 model_off
+ +0x14 u32 submesh_count
+ +0x18 u32 submesh_off
+ +0x1c u32 texture_count
+ +0x20 u32 texture_off
+ +0x24 u32 instance_count
+ +0x28 u32 instance_off
+ +0x2c u32 grid_off
+ +0x30 u32 vertex_off +0x34 u32 vertex_bytes
+ +0x38 u32 index_off +0x3c u32 index_bytes
+ +0x40 u32 texel_off +0x44 u32 texel_bytes
+ +0x48 u32 clut_off +0x4c u32 clut_bytes
 
-MODEL rec (0x1c = 28)  array[model_count] @ model_off
-  +0x00 u32 first_submesh  +0x04 u32 submesh_count
-  +0x08 f32 scale          +0x0c f32 center_x +0x10 center_y +0x14 center_z
-  +0x18 f32 bound_radius
+MODEL rec (0x1c = 28) array[model_count] @ model_off
+ +0x00 u32 first_submesh +0x04 u32 submesh_count
+ +0x08 f32 scale +0x0c f32 center_x +0x10 center_y +0x14 center_z
+ +0x18 f32 bound_radius
 
-SUBMESH rec (0x14 = 20)  array[submesh_count] @ submesh_off
-  +0x00 i32 texture (-1 = untextured)
-  +0x04 u32 vertex_first  +0x08 u32 vertex_count   (vertex units, 12 B each)
-  +0x0c u32 index_first   +0x10 u32 index_count    (u16 units, mult of 3)
+SUBMESH rec (0x14 = 20) array[submesh_count] @ submesh_off
+ +0x00 i32 texture (-1 = untextured)
+ +0x04 u32 vertex_first +0x08 u32 vertex_count (vertex units, 12 B each)
+ +0x0c u32 index_first +0x10 u32 index_count (u16 units, mult of 3)
 
-TEXTURE rec (0x1c = 28)  array[texture_count] @ texture_off
-  +0x00 u16 width +0x02 u16 height
-  +0x04 u32 format (PMAP_FMT_* == GU_PSM_*)
-  +0x08 u32 texel_first +0x0c u32 texel_bytes
-  +0x10 u32 buffer_width (TEXELS)
-  +0x14 u32 clut_first   +0x18 u32 clut_entries (0/16/256)
+TEXTURE rec (0x1c = 28) array[texture_count] @ texture_off
+ +0x00 u16 width +0x02 u16 height
+ +0x04 u32 format (PMAP_FMT_* == GU_PSM_*)
+ +0x08 u32 texel_first +0x0c u32 texel_bytes
+ +0x10 u32 buffer_width (TEXELS)
+ +0x14 u32 clut_first +0x18 u32 clut_entries (0/16/256)
 
-INSTANCE rec (0x24 = 36)  array[instance_count] @ instance_off
-  +0x00 u32 model (index into MODEL table)
-  +0x04 f32 pos_x +0x08 pos_y +0x0c pos_z
-  +0x10 s16 qx +0x12 qy +0x14 qz +0x16 qw   (unit quat, fixed 1.15, 1.0==32767)
-  +0x18 f32 scale
-  +0x1c i32 interior (0 = world, drawn; else culled)
-  +0x20 i32 cell
+INSTANCE rec (0x24 = 36) array[instance_count] @ instance_off
+ +0x00 u32 model (index into MODEL table)
+ +0x04 f32 pos_x +0x08 pos_y +0x0c pos_z
+ +0x10 s16 qx +0x12 qy +0x14 qz +0x16 qw (unit quat, fixed 1.15, 1.0==32767)
+ +0x18 f32 scale
+ +0x1c i32 interior (0 = world, drawn; else culled)
+ +0x20 i32 cell
 
 GRID (0x1c = 28) @ grid_off
-  +0x00 f32 min_x +0x04 f32 min_y +0x08 f32 cell_size
-  +0x0c u32 cells_x +0x10 u32 cells_y +0x14 u32 inst_index_count +0x18 u32 pad
-  then  i32 cell_off[cells_x*cells_y + 1]
-        u16 inst_index[inst_index_count]
-  cell c owns inst_index[cell_off[c] .. cell_off[c+1]); the +1 sentinel == count.
+ +0x00 f32 min_x +0x04 f32 min_y +0x08 f32 cell_size
+ +0x0c u32 cells_x +0x10 u32 cells_y +0x14 u32 inst_index_count +0x18 u32 pad
+ then i32 cell_off[cells_x*cells_y + 1]
+ u16 inst_index[inst_index_count]
+ cell c owns inst_index[cell_off[c] .. cell_off[c+1]); the +1 sentinel == count.
 
 then the four pools, each 16-byte aligned: vertex, index, texel, clut.
 ================================================================================
@@ -136,11 +136,11 @@ assert _GRID.size == 0x1c, _GRID.size
 @dataclass
 class Submesh:
     """One material/texture slice: a vertex block + a u16 (mesh-local) index
-    block.  ``texture`` indexes the TEXTURE table, or -1 for untextured."""
+ block. ``texture`` indexes the TEXTURE table, or -1 for untextured."""
     texture: int
     vertex_bytes: bytes        # PmapVertex[] (12 B each), from psp_mesh prim
     index_bytes: bytes         # u16[] local indices, from psp_mesh prim
-    uvscroll: tuple = None      # (du_dt, dv_dt) UV/sec animated-texture scroll, or None (build-time only, -> .anim sidecar)
+    uvscroll: tuple = None      # (du_dt, dv_dt) UV/sec animated-texture scroll, or None (build-time only, ->.anim sidecar)
     # filled by write_scene:
     vertex_first: int = 0
     vertex_count: int = 0
@@ -151,7 +151,7 @@ class Submesh:
 @dataclass
 class Model:
     """A run of submeshes + the uniform int16-position dequant (scale, center)
-    from ``psp_mesh.pack_model``.  world_local = center + pos_i16 * scale."""
+ from ``psp_mesh.pack_model``. world_local = center + pos_i16 * scale."""
     submeshes: List[Submesh]
     scale: float = 1.0
     center: Tuple[float, float, float] = (0.0, 0.0, 0.0)
@@ -160,16 +160,16 @@ class Model:
     sway_class: int = 0        # wind-sway: 0 none / 1 tree / 2 palm (IDE bIsTree/bIsPalm + name)
     sway_min_z: float = 0.0    # model-local MIN world-Z (base pivot for the matrix-shear)
     spin: tuple = None         # CAnimatedBuilding rotator (axis, mode, rate_deg_s, amplitude_deg)
-                               # or None (build-time only, -> .spin sidecar)
+                               # or None (build-time only, ->.spin sidecar)
     tobj: tuple = None         # SA IDE `tobj` hour window (on, off); bit 7 of `on` = IDE
-                               # ADDITIVE, or None (build-time only, -> .tobj sidecar)
+                               # ADDITIVE, or None (build-time only, ->.tobj sidecar)
     # filled by write_scene:
     first_submesh: int = 0
 
 
 @dataclass
 class Texture:
-    """A swizzled texel plane + (T4/T8) a CLUT.  ``format`` is a GU_PSM_* id."""
+    """A swizzled texel plane + (T4/T8) a CLUT. ``format`` is a GU_PSM_* id."""
     width: int
     height: int
     format: int
@@ -243,9 +243,9 @@ def write_scene(
 ) -> bytes:
     """Serialise into a v2 '.pmap' the engine consumes verbatim.
 
-    Instances are sorted by their grid cell so each cell owns a contiguous run
-    of the instance array (inst_index is then the identity permutation).
-    """
+ Instances are sorted by their grid cell so each cell owns a contiguous run
+ of the instance array (inst_index is then the identity permutation).
+ """
     if grid is None:
         grid = Grid(cell_size=1.0, cells_x=1, cells_y=1)
     cells = grid.cell_count
@@ -378,8 +378,8 @@ def write_scene(
 # read
 # --------------------------------------------------------------------------- #
 def read_scene(data: bytes) -> Scene:
-    """Parse a v2 '.pmap'.  ``read_scene(write_scene(...))`` re-serialises
-    byte-exact."""
+    """Parse a v2 '.pmap'. ``read_scene(write_scene(...))`` re-serialises
+ byte-exact."""
     data = bytes(data)
     if len(data) < HEADER_SIZE:
         raise ValueError("truncated PMAP header")

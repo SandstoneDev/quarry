@@ -13,7 +13,7 @@ mirrored patch. This tool shifts each submesh by an integer tile count
 as an unsigned 16-bit value. Nothing but the UV words changes.
 
 Usage:
-  python pmap_uv_unsign.py <file-or-dir> [more ...] [--backup DIR] [--dry]
+ python pmap_uv_unsign.py <file-or-dir> [more ...] [--backup DIR] [--dry]
 
 v2 files are patched directly; v3 (LZ4) are decompressed, patched, recompressed
 via pmap_lz4_decompress.py / pmap_lz4.py (same folder). A submesh whose UV span
@@ -129,10 +129,10 @@ def unsign_v2(data):
 
 def verify_v2(data):
     """Post-check: the GE's unsigned view must now be the BEST view - for
-    every submesh component, the max per-triangle span in the unsigned domain
-    is <= the max span in the signed reading, and the whole submesh sits
-    inside one [0, SPAN_OK] stretch (no wrap crossing during interpolation;
-    wrap applies per-pixel AFTER interpolation). Returns violation count."""
+ every submesh component, the max per-triangle span in the unsigned domain
+ is <= the max span in the signed reading, and the whole submesh sits
+ inside one [0, SPAN_OK] stretch (no wrap crossing during interpolation;
+ wrap applies per-pixel AFTER interpolation). Returns violation count."""
     h = _read_header(data)
     subs = [struct.unpack_from('<i4I', data, h['submesh_off'] + 20 * i)
             for i in range(h['submesh_count'])]

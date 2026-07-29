@@ -9,8 +9,8 @@ sa_2dfx parses each unique model's DFF once; the instance rotation places the li
 local position into the world (same heading/conjugate rule the .pmap baker used).
 
 Out: assets_build/lights.bin = u32 count + per-light record (32B):
-  f32 x,y,z | u8 r,g,b,a | f32 coronaSize | f32 farClip | f32 ptRange | u8 showMode,flagsLo,flagsHi,pad
-  python tools/light_bake.py
+ f32 x,y,z | u8 r,g,b,a | f32 coronaSize | f32 farClip | f32 ptRange | u8 showMode,flagsLo,flagsHi,pad
+ python tools/light_bake.py
 """
 import os, struct, sys, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -29,7 +29,7 @@ BBOX = tuple(float(v) for v in sys.argv[2:6]) if len(sys.argv) >= 6 else None
 
 def rot_apply(q, lp):
     """Rotate local pos lp by the IPL quaternion q=(x,y,z,w), the .pmap convention:
-    heading-only for tiny x,y, else the conjugate full quaternion."""
+ heading-only for tiny x,y, else the conjugate full quaternion."""
     x, y, z, w = q
     if abs(x) > 0.05 or abs(y) > 0.05:
         x, y, z = -x, -y, -z                       # conjugate

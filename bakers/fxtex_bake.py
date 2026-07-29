@@ -3,11 +3,11 @@
 renderers need into data/fxtex.bin.
 
 Order is FIXED (the runtime indexes by position):
-  0 smokeii_3   engine/explosion smoke puff (the SA prt_smokeII prototype tex)
-  1 fireball6   fire lick / explosion fireball
+ 0 smokeii_3 engine/explosion smoke puff (the SA prt_smokeII prototype tex)
+ 1 fireball6 fire lick / explosion fireball
 
 fxtex.bin: 'FXT1' u16 count u16 pad, then per texture:
-  u16 w,h, nlevels|amode<<8, clutEntries; u32 texelLen, clutLen; texels; clut
+ u16 w,h, nlevels|amode<<8, clutEntries; u32 texelLen, clutLen; texels; clut
 """
 import os
 import struct

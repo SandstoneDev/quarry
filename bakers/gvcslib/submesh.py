@@ -9,21 +9,21 @@ directory (see :func:`gvcslib.model_map.parse_bundle_directory`) points **0x20 b
 a per-model *mesh-descriptor* that the engine geometry compiler ``FUN_00156a98`` walks at
 first draw. ``header_off = in_blob_offset - 0x20``::
 
-    header_off +0x00  u32  N          draw-record count
-    header_off +0x04  u32  pad = 0    (non-zero => material/special blob, NOT a mesh)
-    header_off +0x08  draw_record[N] (each 0x18 = 24 bytes)
-    header_off +0x08 + N*0x18  ->  VTYPE-0x115 vertex stream (stride 10), consumed
-                                   sequentially by the records.
+ header_off +0x00 u32 N draw-record count
+ header_off +0x04 u32 pad = 0 (non-zero => material/special blob, NOT a mesh)
+ header_off +0x08 draw_record[N] (each 0x18 = 24 bytes)
+ header_off +0x08 + N*0x18 -> VTYPE-0x115 vertex stream (stride 10), consumed
+ sequentially by the records.
 
 draw_record (24 bytes)::
 
-    +0x00 u16   material/texture id  (0xffff = none)
-    +0x02 u16   low 15 bits = strip vertex count; bit 0x8000 = z-bias/decal (alpha) flag
-    +0x04 fp16  tex-env scale U  (GE cmd 0x48; UV scale, NOT position scale)
-    +0x06 fp16  tex-env scale V  (GE cmd 0x49)
-    +0x08 fp16  POSITION SCALE   (uniform, PER-RECORD; all 3 axes use this scalar)
-    +0x0a fp16  unused (== 0)
-    +0x0c s16[6] packed cull AABB (frustum cull / record vert bounds; not geometry)
+ +0x00 u16 material/texture id (0xffff = none)
+ +0x02 u16 low 15 bits = strip vertex count; bit 0x8000 = z-bias/decal (alpha) flag
+ +0x04 fp16 tex-env scale U (GE cmd 0x48; UV scale, NOT position scale)
+ +0x06 fp16 tex-env scale V (GE cmd 0x49)
+ +0x08 fp16 POSITION SCALE (uniform, PER-RECORD; all 3 axes use this scalar)
+ +0x0a fp16 unused (== 0)
+ +0x0c s16[6] packed cull AABB (frustum cull / record vert bounds; not geometry)
 
 Each record is one GE PRIM type 4 (TRIANGLE_STRIP). Positions dequantize as
 ``s16/32768 * posScale`` where ``posScale`` is the PER-RECORD uniform fp16 at
@@ -33,7 +33,7 @@ DTZ instance matrix (out of scope).
 
 Model-type discriminator:
 * ``in_blob_offset == 0`` -> the bundle's PRIMARY pooled mesh (decode the whole bundle with
-  :func:`gvcslib.geometry.decode`); :func:`extract_model` returns ``None`` for it.
+ :func:`gvcslib.geometry.decode`); :func:`extract_model` returns ``None`` for it.
 * ``pad != 0`` or implausible ``N`` -> shared/pooled sub-object or material blob -> ``None``.
 * otherwise -> a standalone mesh (returned).
 """
@@ -54,14 +54,14 @@ def _read_scale(blob):
 def extract_model(blob, in_blob_off, dequantize=True):
     """Extract ONE model's sub-mesh from a bundle, or ``None`` for primary/shared entries.
 
-    Returns ``{header_off, N, vstream_off, vstream_end, scale, positions, uv, colors,
-    triangles, prims}``. With ``dequantize`` (default), ``positions`` are local floats
-    (``s16/32768 * pos_scale``, the PER-RECORD uniform scalar @draw_record+0x08) and
-    ``uv`` are 0..1; otherwise ``positions`` are raw s16 tuples and ``uv`` are raw u8.
-    ``colors`` are RGBA5551 ints. ``scale`` is the first record's ``pos_scale`` (as a
-    3-tuple, for back-compat). ``prims`` is the per-record list
-    ``{material, vert_start, vert_count, prim_type, zbias, tex_scale, pos_scale}``.
-    """
+ Returns ``{header_off, N, vstream_off, vstream_end, scale, positions, uv, colors,
+ triangles, prims}``. With ``dequantize`` (default), ``positions`` are local floats
+ (``s16/32768 * pos_scale``, the PER-RECORD uniform scalar @draw_record+0x08) and
+ ``uv`` are 0..1; otherwise ``positions`` are raw s16 tuples and ``uv`` are raw u8.
+ ``colors`` are RGBA5551 ints. ``scale`` is the first record's ``pos_scale`` (as a
+ 3-tuple, for back-compat). ``prims`` is the per-record list
+ ``{material, vert_start, vert_count, prim_type, zbias, tex_scale, pos_scale}``.
+ """
     blob = bytes(blob)
     hdr = in_blob_off - HDR_BACK
     if hdr < 0 or hdr + 8 > len(blob):
@@ -132,8 +132,8 @@ def classify(blob, in_blob_off):
 def extract_all(blob):
     """``{model_id: extract_model(...) }`` for every standalone-mesh entry in the bundle.
 
-    Skips primary (off 0) and shared/pooled entries (which reference the primary pool).
-    """
+ Skips primary (off 0) and shared/pooled entries (which reference the primary pool).
+ """
     blob = bytes(blob)
     out = {}
     for mid, off in model_map.parse_bundle_directory(blob):

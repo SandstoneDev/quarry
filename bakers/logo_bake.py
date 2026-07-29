@@ -5,15 +5,15 @@ The PSP has no generic MPEG-1 decoder (sceMpeg is PMF-only), so the intro video
 is baked offline into a CLUT8 frame sequence the boot player STREAMS from the
 Memory Stick frame by frame (BootLogo.c):
 
-  header : 'VLG1', u16 nframes, u16 fps, u16 w, u16 h
-  frame  : clut[256] RGBA8888 (1024 B) + w*h CLUT8 texels (row-major)
+ header : 'VLG1', u16 nframes, u16 fps, u16 w, u16 h
+ frame : clut[256] RGBA8888 (1024 B) + w*h CLUT8 texels (row-major)
 
 Content is 256x192 (4:3 like the 640x480 source; 256 = pow2 buffer width; the
 player uploads rows into a 256x256 texture and maps v 0..192). 12 fps halves
 the 25 fps source - smooth enough for the R* logo. ~8 s -> ~100 frames x 49 KB
 ~= 5 MB on the stick, ~590 KB/s streamed (well under MS read speed).
 
-Usage: python logo_bake.py           # bake + deploy everywhere reachable
+Usage: python logo_bake.py # bake + deploy everywhere reachable
 """
 import struct
 import subprocess

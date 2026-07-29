@@ -7,12 +7,12 @@ namespace Quarry;
 /// Converter build identity, stamped into every data/ manifest.
 public static class QuarryInfo
 {
-    public const string Version = "v782";   // release tag; bump per release (see RELEASE_PLAYBOOK). UpdateChecker string-compares this to the latest GitHub release tag.
+    public const string Version = "v791";   // release tag; bump per release (see RELEASE_PLAYBOOK). UpdateChecker string-compares this to the latest GitHub release tag.
 }
 
 public sealed record DiscInfo(string ElfId, string Ver, string VMode, bool Supported)
 {
-    public override string ToString =>
+    public override string ToString() =>
         $"{ElfId} v{Ver} ({VMode}){(Supported ? "" : " - UNSUPPORTED")}";
 }
 
@@ -20,7 +20,7 @@ public static class GameVersion
 {
     // elf ids this converter understands (PAL Europe/Australia five-language disc).
     // Extend here when more dumps are verified.
-    private static readonly HashSet<string> Supported = new
+    private static readonly HashSet<string> Supported = new()
     {
         "SLES_525.41",
     };
@@ -31,11 +31,11 @@ public static class GameVersion
         string elf = "", ver = "?", vmode = "?";
         foreach (var raw in systemCnf.Split('\n'))
         {
-            var line = raw.Trim;
+            var line = raw.Trim();
             int eq = line.IndexOf('=');
             if (eq < 0) continue;
-            string key = line[..eq].Trim.ToUpperInvariant;
-            string val = line[(eq + 1)..].Trim;
+            string key = line[..eq].Trim().ToUpperInvariant();
+            string val = line[(eq + 1)..].Trim();
             switch (key)
             {
                 case "BOOT2":
@@ -43,7 +43,7 @@ public static class GameVersion
                     elf = val;
                     int bs = elf.LastIndexOf('\\'); if (bs >= 0) elf = elf[(bs + 1)..];
                     int semi = elf.IndexOf(';'); if (semi >= 0) elf = elf[..semi];
-                    elf = elf.Trim;
+                    elf = elf.Trim();
                     break;
                 case "VER":   ver = val; break;
                 case "VMODE": vmode = val; break;

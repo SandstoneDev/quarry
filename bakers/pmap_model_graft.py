@@ -15,11 +15,11 @@ the trusted instance list, flags and everything else untouched. Round-trip via
 pmap_tex_transplant.tile_to_scene + psp_scene.write_scene.
 
 Fresh tiles: bake with
-  python tools/map_export/export_map.py <out>/ --bbox X0 Y0 X1 Y1
+ python tools/map_export/export_map.py <out>/ --bbox X0 Y0 X1 Y1
 (use the prod region's world box +24u margin; feed <out>/raw/*.pmap here).
 
 Usage:
-  pmap_model_graft.py <prod.pmap> <fresh_raw_dir> <census.json> <out.pmap>
+ pmap_model_graft.py <prod.pmap> <fresh_raw_dir> <census.json> <out.pmap>
 census.json = model_census.py output; entry key = prod pmap basename.
 """
 import glob

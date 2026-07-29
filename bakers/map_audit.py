@@ -2,17 +2,17 @@
 """map_audit - exhaustive health check of a FULL-MAP bake (184 regions).
 
 Catches the failure modes that show up in-game as "holes in the map":
-  * a grid cell regions.bin calls non-empty but that has no .pmap        -> void tile
-  * a .pmap that fails to parse / has zero instances                     -> void tile
-  * submeshes with tex_id < 0 (render UNTEXTURED = white on GE)          -> white surfaces
-  * a missing .col                                                       -> fall through world
-  * a tile whose resident texture MB is a big outlier                    -> cache thrash, and
-    thrash is what makes houses/grass vanish (see the storm-panic case)
-  * versus a BASELINE bake: any region that LOST instances/models        -> regression
+ * a grid cell regions.bin calls non-empty but that has no .pmap -> void tile
+ * a .pmap that fails to parse / has zero instances -> void tile
+ * submeshes with tex_id < 0 (render UNTEXTURED = white on GE) -> white surfaces
+ * a missing .col -> fall through world
+ * a tile whose resident texture MB is a big outlier -> cache thrash, and
+ thrash is what makes houses/grass vanish (see the storm-panic case)
+ * versus a BASELINE bake: any region that LOST instances/models -> regression
 
 Usage:
-  python map_audit.py <bake_dir> [--baseline <installed_dir>] [--json <out.json>]
-  python map_audit.py <bake_dir> --quiet      # anomalies only, no per-region table
+ python map_audit.py <bake_dir> [--baseline <installed_dir>] [--json <out.json>]
+ python map_audit.py <bake_dir> --quiet # anomalies only, no per-region table
 """
 import json
 import os
@@ -36,8 +36,8 @@ TEX_MB_WARN = 6.0
 
 def read_regions_bin(d):
     """PRGN manifest (build_grid_pmaps): magic|ver|ox,oy|tile|nx,ny|cell then nx*ny
-    u32 instance counts, row-major (0 = empty cell).
-    -> (ox, oy, tile, nx, ny, {(rx,ry): count}) or None."""
+ u32 instance counts, row-major (0 = empty cell).
+ -> (ox, oy, tile, nx, ny, {(rx,ry): count}) or None."""
     p = os.path.join(d, "regions.bin")
     if not os.path.exists(p):
         return None

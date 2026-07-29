@@ -8,11 +8,11 @@ engine's global sceGuTexScale(8,8) the sampling window is [0,16) tiles, wrapping
 mod 16 (Sony GE-UM 6.1/6.5; research/striped_textures_rootcause_and_fix.md).
 Two things go wrong when a single triangle tiles a texture many times over:
 
-  * a triangle spanning ~14 tiles repeats the texture 14x across itself at 16-bit
-    precision, which reads as a stretched/smeared surface; and
-  * a submesh whose span exceeds the window cannot be shifted into it at all, so
-    pmap_uv_unsign falls back to per-vertex fract-wrap - not affine across the
-    triangle, so the texture ends up mis-applied rather than merely blurry.
+ * a triangle spanning ~14 tiles repeats the texture 14x across itself at 16-bit
+ precision, which reads as a stretched/smeared surface; and
+ * a submesh whose span exceeds the window cannot be shifted into it at all, so
+ pmap_uv_unsign falls back to per-vertex fract-wrap - not affine across the
+ triangle, so the texture ends up mis-applied rather than merely blurry.
 
 The PC-derived world never showed this because map_export/geom.py caps every
 triangle edge at UV_EDGE_MAX tiles before packing. The PS2 path bypasses geom.py
@@ -22,14 +22,14 @@ triangle through. Measured on the same 8 regions: PC set max span 4.00 tiles wit
 zero triangles above it, PS2 set 13.96 with 8.95% above 4 tiles.
 
 WHAT THIS DOES, per submesh:
-  1. tessellate - crack-free 1->4 subdivision, repeated until no triangle's UV
-                  extent exceeds UV_EDGE_MAX tiles. A per-submesh edge-midpoint
-                  cache gives an edge shared by two triangles a single shared
-                  midpoint, so no T-junctions appear.
-  2. bucket + rebase - partition the triangles by the UV cell of their centroid
-                  and shift each part by a whole number of tiles (invariant under
-                  GU_REPEAT, so appearance-neutral). Bucket span is at most
-                  UV_CELL + UV_EDGE_MAX = 12 tiles, comfortably inside the window.
+ 1. tessellate - crack-free 1->4 subdivision, repeated until no triangle's UV
+ extent exceeds UV_EDGE_MAX tiles. A per-submesh edge-midpoint
+ cache gives an edge shared by two triangles a single shared
+ midpoint, so no T-junctions appear.
+ 2. bucket + rebase - partition the triangles by the UV cell of their centroid
+ and shift each part by a whole number of tiles (invariant under
+ GU_REPEAT, so appearance-neutral). Bucket span is at most
+ UV_CELL + UV_EDGE_MAX = 12 tiles, comfortably inside the window.
 
 Note there is no corrupt-UV sanitize step here, unlike geom.py's float-space
 pipeline. By the time geometry reaches us the UVs are already packed s16, so the
@@ -42,13 +42,13 @@ Post-condition: every triangle's UV extent is <= UV_EDGE_MAX tiles and every
 submesh sits inside [0, 16) tiles, so the later pmap_uv_unsign pass finds nothing
 to fix.
 
-Usage (as a module):  from ps2_uv_tess import cap_uv_span
-                      stats = cap_uv_span(scene_models)
+Usage (as a module): from ps2_uv_tess import cap_uv_span
+ stats = cap_uv_span(scene_models)
 """
 import struct
 
 UV_ONE = 4096              # raw units per 1.0 uv (gvcslib UV_FIXED_ONE)
-VSTRIDE = 12               # u,v (16-bit)  colour (u16)  x,y,z (s16)
+VSTRIDE = 12               # u,v (16-bit) colour (u16) x,y,z (s16)
 # The GE reads a 16-bit texcoord UNSIGNED, so the UV words are handled as raw
 # u16 throughout: a rebased value can legitimately be up to 12 tiles (49152),
 # which no signed 16-bit view can hold. Position stays genuinely signed.
@@ -93,7 +93,7 @@ def _tri_uv_extent(verts, a, b, c):
 
 def _fract_wrap(verts):
     """Per-vertex wrap into one tile. Identical under GU_REPEAT (uv and uv+N
-    sample the same texel), and the only sane answer for corrupt source UVs."""
+ sample the same texel), and the only sane answer for corrupt source UVs."""
     return [(v[0] % UV_ONE, v[1] % UV_ONE, v[2], v[3], v[4], v[5]) for v in verts]
 
 
@@ -103,12 +103,12 @@ def _to_signed(w):
 
 def _pick_domain(verts, tris):
     """Decide whether the UV words were authored signed (centred on zero) or
-    already sit in the GE's unsigned window, and return verts in that domain.
+ already sit in the GE's unsigned window, and return verts in that domain.
 
-    The author's domain is the one where triangles are locally small: read in the
-    wrong domain, a triangle straddling zero appears to span nearly the whole
-    16-tile window. Same rule as pmap_uv_unsign, and it is what makes a second
-    pass over our own output a no-op."""
+ The author's domain is the one where triangles are locally small: read in the
+ wrong domain, a triangle straddling zero appears to span nearly the whole
+ 16-tile window. Same rule as pmap_uv_unsign, and it is what makes a second
+ pass over our own output a no-op."""
     if not tris:
         return verts
     signed = [(_to_signed(v[0]), _to_signed(v[1]), v[2], v[3], v[4], v[5])
@@ -121,9 +121,9 @@ def _pick_domain(verts, tris):
 def _tessellate(verts, tris, limit):
     """Subdivide 1->4 until every triangle's UV extent is <= limit raw units.
 
-    verts is grown in place; a shared edge-midpoint cache keyed on the vertex
-    pair keeps the mesh crack-free. Returns (tris, ok): ok is False when the
-    work bound was hit, which tells the caller to fract-wrap instead."""
+ verts is grown in place; a shared edge-midpoint cache keyed on the vertex
+ pair keeps the mesh crack-free. Returns (tris, ok): ok is False when the
+ work bound was hit, which tells the caller to fract-wrap instead."""
     for _ in range(MAX_PASSES):
         if all(_tri_uv_extent(verts, a, b, c) <= limit for a, b, c in tris):
             return tris, True
@@ -154,9 +154,9 @@ def _tessellate(verts, tris, limit):
 def _bucket_and_rebase(sm_cls, sm, verts, tris):
     """Partition by UV cell, shift each part by whole tiles into [0, span].
 
-    A whole-tile shift is invariant under GU_REPEAT, so this is appearance-
-    neutral; min-floor (rather than centring on the mean) is what puts the result
-    in the GE's UNSIGNED window instead of straddling zero."""
+ A whole-tile shift is invariant under GU_REPEAT, so this is appearance-
+ neutral; min-floor (rather than centring on the mean) is what puts the result
+ in the GE's UNSIGNED window instead of straddling zero."""
     cell = int(UV_CELL * UV_ONE)
     buckets = {}
     for a, b, c in tris:
@@ -197,7 +197,7 @@ def _bucket_and_rebase(sm_cls, sm, verts, tris):
         vb = b"".join(struct.pack(VFMT, *v) for v in bverts)
         ib = struct.pack("<%dH" % len(bidx), *bidx)
         # carry every per-submesh attribute onto the pieces: uvscroll (the
-        # animated-texture UV rate feeding the .anim sidecar) belongs to the
+        # animated-texture UV rate feeding the.anim sidecar) belongs to the
         # MATERIAL, so each piece of a split scrolling sign must keep scrolling.
         out.append(sm_cls(texture=sm.texture, vertex_bytes=vb, index_bytes=ib,
                           uvscroll=sm.uvscroll))

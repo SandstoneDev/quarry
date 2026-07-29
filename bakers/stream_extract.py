@@ -7,15 +7,15 @@ data starts 0x1F84 bytes into the track region (a tTrackInfo beat-grid header is
 and is de-obfuscated by a 16-byte rolling XOR keyed on the absolute file offset.
 See docs/gta_sa/12_audio/audio_streaming.md.
 
-  TRAKLKUP.DAT  - tTrackLookup[N], 0xC each: {u8 pakIdx; u8 pad[3]; u32 offset; u32 length}
-  STRMPAKS.DAT  - StreamPack[M], 0x10 each: char name[16]
-  AUDIO/STREAMS/<pak> ogg = file[offset+0x1F84 : offset+0x1F84+length], then ADF de-XOR:
-      out[i] = enc[i] ^ KEY[(offset+0x1F84+i) & 0xF]   (absolute file offset)
+ TRAKLKUP.DAT - tTrackLookup[N], 0xC each: {u8 pakIdx; u8 pad[3]; u32 offset; u32 length}
+ STRMPAKS.DAT - StreamPack[M], 0x10 each: char name[16]
+ AUDIO/STREAMS/<pak> ogg = file[offset+0x1F84 : offset+0x1F84+length], then ADF de-XOR:
+ out[i] = enc[i] ^ KEY[(offset+0x1F84+i) & 0xF] (absolute file offset)
 
 Usage:
-  python stream_extract.py list                 # list paks / track counts
-  python stream_extract.py info <trackId>       # extract to a temp + report OggS/rate/dur/comment
-  python stream_extract.py <trackId> out.ogg    # extract one track to out.ogg
+ python stream_extract.py list # list paks / track counts
+ python stream_extract.py info <trackId> # extract to a temp + report OggS/rate/dur/comment
+ python stream_extract.py <trackId> out.ogg # extract one track to out.ogg
 """
 import os
 import sys

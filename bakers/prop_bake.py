@@ -2,14 +2,14 @@
 """prop_bake - bake ONE small static prop (money stack etc.) into a tiny
 self-contained mesh blob for simple runtime renderers (Pickups).
 
-  python prop_bake.py money dyn_cash data/money.bin
+ python prop_bake.py money dyn_cash data/money.bin
 
 prop.bin ('PRP1', little-endian):
-  u16 nvert, nidx, texW, texH, nlevels|amode<<8, clutEntries
-  u32 texelLen, clutLen
-  vert[nvert]: f32 u,v; u32 colorABGR; f32 x,y,z     (GE static vertex order)
-  idx[nidx]:   u16
-  texels[texelLen] swizzled T8 (all mips), clut[clutLen] RGBA8888
+ u16 nvert, nidx, texW, texH, nlevels|amode<<8, clutEntries
+ u32 texelLen, clutLen
+ vert[nvert]: f32 u,v; u32 colorABGR; f32 x,y,z (GE static vertex order)
+ idx[nidx]: u16
+ texels[texelLen] swizzled T8 (all mips), clut[clutLen] RGBA8888
 """
 import os
 import struct

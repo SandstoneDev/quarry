@@ -54,7 +54,7 @@ public sealed class Iso9660Reader : IDisposable
     /// Walk one directory extent into entries (self/parent records skipped).
     private List<IsoEntry> ReadDirectory(uint lba, uint size, string dirPath)
     {
-        var list = new List<IsoEntry>;
+        var list = new List<IsoEntry>();
         var buf = new byte[size];
         _fs.Position = (long)lba * SectorSize;
         _fs.ReadExactly(buf);
@@ -75,7 +75,7 @@ public sealed class Iso9660Reader : IDisposable
             string rawName = System.Text.Encoding.ASCII.GetString(buf, off + 33, nameLen);
             int semi = rawName.IndexOf(';');
             if (semi >= 0) rawName = rawName[..semi];
-            rawName = rawName.TrimEnd('.').ToUpperInvariant;
+            rawName = rawName.TrimEnd('.').ToUpperInvariant();
 
             bool isDir = (buf[off + 25] & 0x02) != 0;
             list.Add(new IsoEntry
@@ -92,9 +92,9 @@ public sealed class Iso9660Reader : IDisposable
     }
 
     /// Full recursive listing (paths use '/' separators, all uppercase).
-    public List<IsoEntry> ListAll
+    public List<IsoEntry> ListAll()
     {
-        var all = new List<IsoEntry>;
+        var all = new List<IsoEntry>();
         void Walk(uint lba, uint size, string path)
         {
             foreach (var e in ReadDirectory(lba, size, path))
@@ -110,7 +110,7 @@ public sealed class Iso9660Reader : IDisposable
     /// Find a single file by exact path ("DATA/TIMECYCP.DAT"), case-insensitive.
     public IsoEntry? Find(string path)
     {
-        path = path.Replace('\\', '/').ToUpperInvariant;
+        path = path.Replace('\\', '/').ToUpperInvariant();
         string[] parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         uint lba = _rootLba, size = _rootSize;
         string cur = "";
@@ -158,7 +158,7 @@ public sealed class Iso9660Reader : IDisposable
     /// no need to extract a 900MB archive to walk its directory).
     public Stream OpenRead(IsoEntry e) => new SubStream(_fs, (long)e.Lba * SectorSize, e.Size);
 
-    public void Dispose => _fs.Dispose;
+    public void Dispose() => _fs.Dispose();
 }
 
 /// Read-only window into a larger stream. NOT thread-safe (shares the parent's position).
@@ -198,7 +198,7 @@ public sealed class SubStream : Stream
         return _pos;
     }
 
-    public override void Flush { }
-    public override void SetLength(long value) => throw new NotSupportedException;
-    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException;
+    public override void Flush() { }
+    public override void SetLength(long value) => throw new NotSupportedException();
+    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
 }

@@ -4,25 +4,25 @@
 SA's moving map props (the LV rotating signs, windmills, the A51 radar) are
 CAnimatedBuilding: an IDE `anim` row names an anim BLOCK, the block holds one
 animation named after the model's DFF, and each of its SEQUENCES drives the
-clump CHILD FRAME whose node name matches the sequence name.  The clips are
+clump CHILD FRAME whose node name matches the sequence name. The clips are
 tiny and dumb - ANP3 keyType 3 (compressed, ROTATION ONLY), 4..37 keys, no
 translation channel anywhere - so every one of them collapses to
 
-    {axis, mode, rate_deg_per_sec, amplitude_deg}
+ {axis, mode, rate_deg_per_sec, amplitude_deg}
 
 and the IFP itself never has to ship (the engine spins the split model from
 this descriptor; see the region_X_Y.spin sidecar in sa_export_pmap).
 
 Playback contract the descriptor encodes (phase = rate_deg_per_sec * t):
-    mode 0 SPIN   angle = phase           (unbounded, wrap 360; amplitude unused)
-    mode 1 SWING  angle = amplitude * sin(radians(phase))
+ mode 0 SPIN angle = phase (unbounded, wrap 360; amplitude unused)
+ mode 1 SWING angle = amplitude * sin(radians(phase))
 
 A clip that does not collapse - more than one rotation axis, a translation
 channel (keyType 2/4), no time span - returns None and the exporter leaves that
 atomic static rather than guessing.
 
 Run directly to dump every map anim block:
-    python sa_spin.py <extractedIsoRoot>
+ python sa_spin.py <extractedIsoRoot>
 """
 import math
 import os
@@ -121,7 +121,7 @@ def block_spins(ifp_blob, dff_name):
 
 def make_resolver(img, verbose=False):
     """Build the `spin_resolver(anim_block, dff_name)` callback sa_export_pmap
-    takes: reads <animBlock>.ifp out of gta3.img (cached) and reduces the clip."""
+ takes: reads <animBlock>.ifp out of gta3.img (cached) and reduces the clip."""
     have = set(n.lower() for n in img.names())
     cache = {}
 

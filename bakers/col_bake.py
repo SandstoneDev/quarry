@@ -16,24 +16,24 @@ modelled as CBox) are triangulated to 12 faces so they collide too.
 
 world_col.bin (little-endian) ===============================================
 Header @0x00 (0x48 bytes):
-  u32 magic   'WCOL' = 0x4C4F4357
-  u32 version = 2
-  u32 nModels, nInsts, nVerts, nFaces
-  f32 gridMinX, gridMinY, gridCell
-  u32 gridCX, gridCY
-  u32 offModels, offVerts, offFaces, offInsts, offCellOff, offCellIdx, nCellIdx
+ u32 magic 'WCOL' = 0x4C4F4357
+ u32 version = 2
+ u32 nModels, nInsts, nVerts, nFaces
+ f32 gridMinX, gridMinY, gridCell
+ u32 gridCX, gridCY
+ u32 offModels, offVerts, offFaces, offInsts, offCellOff, offCellIdx, nCellIdx
 Model (40B): u32 vFirst,vCount,fFirst,fCount; f32 vscale,radius,cx,cy,cz
-Vert  (6B):  s16 x,y,z          (local = s16 * model.vscale)
-Face  (8B):  u16 a,b,c; u8 material; u8 flags
-Inst  (72B): u32 model; f32 m[9] (row-major, world = M*local + pos); f32 pos[3];
-             f32 wc[3] (world bound centre); f32 wradius; u32 pad
+Vert (6B): s16 x,y,z (local = s16 * model.vscale)
+Face (8B): u16 a,b,c; u8 material; u8 flags
+Inst (72B): u32 model; f32 m[9] (row-major, world = M*local + pos); f32 pos[3];
+ f32 wc[3] (world bound centre); f32 wradius; u32 pad
 Grid: cellOff[(CX*CY)+1] u32 prefix; cellIdx[nCellIdx] u32 instance indices.
-      cell = gy*CX + gx,  gx = (x-gridMinX)/gridCell
+ cell = gy*CX + gx, gx = (x-gridMinX)/gridCell
 ================================================================================
 
 Modes:
-    python col_bake.py measure     # parse + filter, report stats / sizes
-    python col_bake.py [out.bin]   # full bake (default = deploy SA_PSP/world_col.bin)
+ python col_bake.py measure # parse + filter, report stats / sizes
+ python col_bake.py [out.bin] # full bake (default = deploy SA_PSP/world_col.bin)
 """
 import os
 import sys
@@ -68,7 +68,7 @@ WCOL_MAGIC = 0x4C4F4357
 # canopy. Classify by NAME only (material 43 is far broader) and err on the side
 # of PRECISION - the SA 'vgs'/'vgn'/'vge' prefixes are Las Venturas map SECTIONS
 # (vgn_corpbuild is a 154u skyscraper!), so we match vegetation tokens explicitly
-# and never a bare 'vg*' prefix. Validated against every .col in gta3.img: 131
+# and never a bare 'vg*' prefix. Validated against every.col in gta3.img: 131
 # models match, 0 buildings, and all 31 'fire*' props (fire_hydrant, firehouse,
 # fire_esc, vgnfirestat...) are excluded by the 'fire' guard.
 VEG_TRUNK_CAP = 7.0
@@ -92,7 +92,7 @@ def is_veg_name(name):
 
 def quat_to_matrix(qx, qy, qz, qw):
     """SA conjugates the IPL quaternion (negate imag, keep real) then builds the
-    rotation matrix. Returns row-major 3x3 R with v_world = R @ v_local."""
+ rotation matrix. Returns row-major 3x3 R with v_world = R @ v_local."""
     x, y, z, w = -qx, -qy, -qz, qw
     n = x * x + y * y + z * z + w * w
     if n > 1e-12:
@@ -139,9 +139,9 @@ def parse_ipl_insts(path):
 
 def load_ide_id2name():
     """Map model id -> model name from every IDE (objs/tobj/anim sections).
-    Binary IPL streams reference models by id; .col libraries key by name and
-    often store modelId=0, so this mapping is required to resolve the bulk of the
-    streamed map (roads / land / grass tiles especially)."""
+ Binary IPL streams reference models by id; .col libraries key by name and
+ often store modelId=0, so this mapping is required to resolve the bulk of the
+ streamed map (roads / land / grass tiles especially)."""
     id2name = {}
     SECT = {"objs", "tobj", "anim"}
     ides = glob.glob(SA + "/data/**/*.ide", recursive=True) + \
@@ -171,8 +171,8 @@ def load_ide_id2name():
 
 def parse_bnry_insts(blob):
     """Yield (modelId, px,py,pz, qx,qy,qz,qw) from a binary `bnry` IPL stream.
-    Header (after magic): numInst,_,_,_, numCars,_, offInst (7x u32). INST = 40B:
-    pos(3f), rot(4f), modelId(i32), interior(i32), lod(i32)."""
+ Header (after magic): numInst,_,_,_, numCars,_, offInst (7x u32). INST = 40B:
+ pos(3f), rot(4f), modelId(i32), interior(i32), lod(i32)."""
     if blob[:4] != b"bnry":
         return
     numInst = struct.unpack_from("<I", blob, 4)[0]
@@ -186,8 +186,8 @@ def parse_bnry_insts(blob):
 
 def box_corners_faces(b, zcap=None):
     """8 corners + 12 (a,b,c,material) triangles of an axis-aligned CBox.
-    zcap (veg trunk cap): lower the box top to zcap so aircraft clear tall
-    vegetation, but never below the box floor - keeps the grounded trunk."""
+ zcap (veg trunk cap): lower the box top to zcap so aircraft clear tall
+ vegetation, but never below the box floor - keeps the grounded trunk."""
     mnx, mny, mnz, mxx, mxy, mxz, mat = b
     if zcap is not None and mxz > zcap:
         mxz = max(mnz, zcap)
@@ -200,9 +200,9 @@ def box_corners_faces(b, zcap=None):
 
 def model_geometry(cm):
     """Flatten a ColModel into (verts[(x,y,z)], faces[(a,b,c,mat)]) including its
-    boxes-as-triangles. Returns model-local float coords. Tall vegetation is
-    height-capped (VEG_TRUNK_CAP) so aircraft clear the canopy while the grounded
-    trunk still collides - clamped on BOTH the mesh verts and the CBox tops."""
+ boxes-as-triangles. Returns model-local float coords. Tall vegetation is
+ height-capped (VEG_TRUNK_CAP) so aircraft clear the canopy while the grounded
+ trunk still collides - clamped on BOTH the mesh verts and the CBox tops."""
     zcap = VEG_TRUNK_CAP if is_veg_name(cm.name) else None
     if zcap is not None:
         verts = [(x, y, min(z, zcap)) for (x, y, z) in cm.verts]
@@ -219,10 +219,10 @@ def model_geometry(cm):
 
 def load_barrier_ids():
     """b464: model ids that are city-lock / bridge barriers, for the runtime "Barriers" toggle:
-    every IDE object whose TXD is 'barrierblk' (the roadblock/bridge-barrier set 4510..4527:
-    ce_fredbar, sfw/cn2/sfse_roadblock, ce_makospan - the LS<->SF<->countryside<->Vegas locks)
-    PLUS the barriers.ide construction range 966..998. Both col_bake and barrier_sidecar_bake tag
-    these the same way so the model render-skip and the collision-skip cover the same models."""
+ every IDE object whose TXD is 'barrierblk' (the roadblock/bridge-barrier set 4510..4527:
+ ce_fredbar, sfw/cn2/sfse_roadblock, ce_makospan - the LS<->SF<->countryside<->Vegas locks)
+ PLUS the barriers.ide construction range 966..998. Both col_bake and barrier_sidecar_bake tag
+ these the same way so the model render-skip and the collision-skip cover the same models."""
     ids = set(range(966, 999))
     SECT = {"objs", "tobj", "anim"}
     ides = glob.glob(SA + "/data/**/*.ide", recursive=True) + \
@@ -250,8 +250,8 @@ def load_barrier_ids():
 
 def load_dyn_names():
     """Model names owned by the DYNAMIC object system (tools/dyn_names.txt from
-    dynobj_bake.py). These are EXCLUDED from the static world collision: a felled
-    lamp post must not leave an invisible wall (runtime capsules replace them)."""
+ dynobj_bake.py). These are EXCLUDED from the static world collision: a felled
+ lamp post must not leave an invisible wall (runtime capsules replace them)."""
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dyn_names.txt")
     if not os.path.exists(path):
         return set()
@@ -260,10 +260,10 @@ def load_dyn_names():
 
 def gather():
     """Collect unique models + in-patch instances.
-    Returns (models, insts, stats):
-      models[i] = (verts[(x,y,z)], faces[(a,b,c,mat)], radius, (cx,cy,cz))
-      insts[j]  = (model_idx, mat9, (px,py,pz))
-    """
+ Returns (models, insts, stats):
+ models[i] = (verts[(x,y,z)], faces[(a,b,c,mat)], radius, (cx,cy,cz))
+ insts[j] = (model_idx, mat9, (px,py,pz))
+ """
     img = sa_col.ImgArchive(sa_col.IMG)
     print("indexing col libraries...")
     idx, libs = sa_col.build_index(img)
@@ -294,10 +294,10 @@ def gather():
     seen = set()
     model_index = {}          # model IDENTITY id(cm) -> index in `models`
                               # (NOT cm.model_id: 1009 country/terrain models all
-                              #  carry model_id==0, so keying by id collapses the
-                              #  whole back-country onto one model -> ground never
-                              #  emitted -> fall-through. id(cm) is stable here:
-                              #  every cm is pinned live by idx/by_id for the run.)
+                              # carry model_id==0, so keying by id collapses the
+                              # whole back-country onto one model -> ground never
+                              # emitted -> fall-through. id(cm) is stable here:
+                              # every cm is pinned live by idx/by_id for the run.)
     models = []               # b460: each tuple is (verts, faces, radius, center, is_barrier)
     insts = []
     n_inst = n_in_patch = n_with_col = n_empty = n_missing = n_dup = 0
@@ -468,7 +468,7 @@ GCELL_REGION = 50.0   # COL broadphase cell inside a region tile
 
 def read_regions_bin(path):
     """Grid params from the .pmap region manifest (single source of truth -> the COL
-    tiling matches Streaming.c's tile_of exactly)."""
+ tiling matches Streaming.c's tile_of exactly)."""
     with open(path, "rb") as f:
         d = f.read(32)
     magic, ver, ox, oy, tile, nx, ny, cell = struct.unpack_from("<2I3f2If", d, 0)
@@ -479,8 +479,8 @@ def read_regions_bin(path):
 
 def bake_regions(outdir):
     """Whole-map COL sliced into region_X_Y.col matching the .pmap region grid. An
-    instance lands in EVERY tile its world bound circle intersects (not just its centre
-    tile) so border overhangs are collidable from the neighbour -> no seams."""
+ instance lands in EVERY tile its world bound circle intersects (not just its centre
+ tile) so border overhangs are collidable from the neighbour -> no seams."""
     global PMIN_X, PMIN_Y, PMAX_X, PMAX_Y
     PMIN_X, PMIN_Y = -1e9, -1e9          # disable the patch clip -> gather the whole map
     PMAX_X, PMAX_Y =  1e9,  1e9

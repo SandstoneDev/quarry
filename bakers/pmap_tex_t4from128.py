@@ -15,7 +15,7 @@ texture table change. Textures with alpha (num_levels alpha byte != 0) are
 skipped - 16-colour quantization of alpha edges is a quality risk.
 
 Usage:
-  pmap_tex_t4from128.py <prod.pmap> <bak128.pmap> <out.pmap> [--report]
+ pmap_tex_t4from128.py <prod.pmap> <bak128.pmap> <out.pmap> [--report]
 v3 inputs are decompressed / the output recompressed automatically.
 """
 import os

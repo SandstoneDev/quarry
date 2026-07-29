@@ -8,14 +8,14 @@ production tiles are the only world with correct instances/flags - so instead
 of rebuilding the world around 128px textures, transplant the 128px texels INTO
 the production tiles:
 
-  for each production tile (v3):
-      decode to scene objects (per-model/per-texture LZ4 inflate)
-      find wet_road models (position match, road_sidecar_bake logic)
-      pair each with the same-position model in the DONOR tile (the tx128road
-        bake, whose road textures are 128px)
-      submesh k <-> submesh k: replace the production texture's texels/clut/
-        dims with the donor's 128px version (dedup: replace once per texture)
-      write v2 -> lz4 back to v3
+ for each production tile (v3):
+ decode to scene objects (per-model/per-texture LZ4 inflate)
+ find wet_road models (position match, road_sidecar_bake logic)
+ pair each with the same-position model in the DONOR tile (the tx128road
+ bake, whose road textures are 128px)
+ submesh k <-> submesh k: replace the production texture's texels/clut/
+ dims with the donor's 128px version (dedup: replace once per texture)
+ write v2 -> lz4 back to v3
 
 Everything else in the tile - instances, flags, draw distances, models,
 non-road textures - stays production bit-for-bat. Sidecars (.col/.lod/.road/

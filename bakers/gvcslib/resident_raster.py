@@ -1,7 +1,7 @@
 """Decode an LVZ-resident RW-PSP raster to RGBA8888 pixels (the source console title, PSP).
 
 A draw-record *material id* (see :mod:`gvcslib.submesh`) is a SLOT into
-``lvz.decode(<zone>.lvz).all_records``.  That record's ``desc_ptr`` is a
+``lvz.decode(<zone>.lvz).all_records``. That record's ``desc_ptr`` is a
 payload offset of a RESIDENT RW-PSP raster descriptor that lives directly in
 the (relocated) LVZ payload - NOT inside an ``AERA`` IMG-cell container.
 
@@ -10,23 +10,23 @@ that :mod:`gvcslib.rwtex` already decodes (verified byte-for-byte on BEACH /
 MAINLA), so this module deliberately reuses ``rwtex``'s swizzle / mip-geometry /
 pixel-unpack primitives instead of re-deriving them:
 
-    +0x00 u8   descByte0
-                 bits[2:0] TPSM format (0=565 1=5551 2=4444 3=8888 4=T4 5=T8)
-                 bit [3]   swizzle flag (informational; texels are ALWAYS
-                           stored in PSP 16x8 block order on disk, so we always
-                           un-swizzle - matches the shipping AERA decoder)
-                 bits[6:4] maxMipLevel  -> stored mip count = max(that, 1)
-                 bit [7]   mip-enable
-    +0x01 u8   descByte1   log2(width) = low nibble, log2(height) = high nibble
-    +0x02 u16  marker == 0x0012   (the RW-PSP raster tag)
-    +0x04 u32  texel_ptr  (relocated absolute payload offset; == desc_off+0x10)
-    +0x08 u32  pad[2]
+ +0x00 u8 descByte0
+ bits[2:0] TPSM format (0=565 1=5551 2=4444 3=8888 4=T4 5=T8)
+ bit [3] swizzle flag (informational; texels are ALWAYS
+ stored in PSP 16x8 block order on disk, so we always
+ un-swizzle - matches the shipping AERA decoder)
+ bits[6:4] maxMipLevel -> stored mip count = max(that, 1)
+ bit [7] mip-enable
+ +0x01 u8 descByte1 log2(width) = low nibble, log2(height) = high nibble
+ +0x02 u16 marker == 0x0012 (the RW-PSP raster tag)
+ +0x04 u32 texel_ptr (relocated absolute payload offset; == desc_off+0x10)
+ +0x08 u32 pad[2]
 
 Immediately after the 0x10-byte descriptor:
-    - the full mip chain (level 0 first, every level contiguous);
-    - a fixed 0x20-byte name/flags trailer (holds the ASCII texture name);
-    - for palettised formats (T4/T8), the CLUT: 16 (T4) or 256 (T8) RGBA8888
-      entries, ALPHA IN THE LAST BYTE.
+ - the full mip chain (level 0 first, every level contiguous);
+ - a fixed 0x20-byte name/flags trailer (holds the ASCII texture name);
+ - for palettised formats (T4/T8), the CLUT: 16 (T4) or 256 (T8) RGBA8888
+ entries, ALPHA IN THE LAST BYTE.
 
 CLUT alpha convention
 ---------------------
@@ -58,12 +58,12 @@ BLOCK_W = 16
 def _swizzle_stride(fmt, w):
     """Stored row stride in bytes: logical byte width padded up to 16 bytes.
 
-    ``rwtex.byte_width`` already pads T4 to >=16; this additionally rounds up
-    to a 16-byte multiple so the swizzle block geometry is always exact.  For
-    every raster format/width that occurs in the console title this equals
-    ``rwtex.byte_width(fmt, w)`` (verified), so the change is observationally
-    inert on real data and only fixes the synthetic narrow-T8 swizzle case.
-    """
+ ``rwtex.byte_width`` already pads T4 to >=16; this additionally rounds up
+ to a 16-byte multiple so the swizzle block geometry is always exact. For
+ every raster format/width that occurs in the console title this equals
+ ``rwtex.byte_width(fmt, w)`` (verified), so the change is observationally
+ inert on real data and only fixes the synthetic narrow-T8 swizzle case.
+ """
     wb = rwtex.byte_width(fmt, w)
     return (wb + BLOCK_W - 1) // BLOCK_W * BLOCK_W
 
@@ -71,12 +71,12 @@ def _swizzle_stride(fmt, w):
 def is_resident_raster(payload, desc_off):
     """True if ``desc_off`` in ``payload`` is a genuine RW-PSP raster descriptor.
 
-    Requires the 0x0012 marker at +0x02 *and* the self-pointer
-    ``texel_ptr == desc_off + 0x10`` at +0x04, and a known TPSM format.  This
-    is the same strict pairing :func:`rwtex._find_descriptors` uses, so it
-    rejects the incidental 0x0012 half-words inside texel data and the
-    geometry resources that share the LVZ master-record array.
-    """
+ Requires the 0x0012 marker at +0x02 *and* the self-pointer
+ ``texel_ptr == desc_off + 0x10`` at +0x04, and a known TPSM format. This
+ is the same strict pairing :func:`rwtex._find_descriptors` uses, so it
+ rejects the incidental 0x0012 half-words inside texel data and the
+ geometry resources that share the LVZ master-record array.
+ """
     if desc_off < 0 or desc_off + DESC_SIZE > len(payload):
         return False
     if u16(payload, desc_off + 2) != RASTER_MARKER:
@@ -89,10 +89,10 @@ def is_resident_raster(payload, desc_off):
 def raster_extent(payload, desc_off):
     """Total byte length of the raster at ``desc_off`` (descriptor..end of CLUT).
 
-    Direct-colour formats: descriptor + mip0 texels. Palettised (T4/T8):
-    descriptor + full mip chain + 0x20 name trailer + CLUT. Used to bound an
-    in-place overwrite so it cannot clobber the next resource.
-    """
+ Direct-colour formats: descriptor + mip0 texels. Palettised (T4/T8):
+ descriptor + full mip chain + 0x20 name trailer + CLUT. Used to bound an
+ in-place overwrite so it cannot clobber the next resource.
+ """
     if not is_resident_raster(payload, desc_off):
         raise ValueError("no RW-PSP raster descriptor at payload+0x%x" % desc_off)
     b0 = u8(payload, desc_off)
@@ -116,21 +116,21 @@ def raster_extent(payload, desc_off):
 def decode_resident_raster(payload, desc_off):
     """Decode the LVZ-resident raster at ``desc_off`` to level-0 RGBA8888.
 
-    Args:
-        payload:  the *relocated* LVZ container payload bytes
-                  (``lvz.decode(...).payload`` / ``Container.payload``).
-        desc_off: payload offset of the 0x10-byte raster descriptor, i.e. a
-                  used ``ResourceRecord.desc_ptr`` reached from a draw-record
-                  material id.
+ Args:
+ payload: the *relocated* LVZ container payload bytes
+ (``lvz.decode(...).payload`` / ``Container.payload``).
+ desc_off: payload offset of the 0x10-byte raster descriptor, i.e. a
+ used ``ResourceRecord.desc_ptr`` reached from a draw-record
+ material id.
 
-    Returns:
-        ``(w, h, fmt_name, rgba_bytes)`` where ``rgba_bytes`` is length
-        ``w*h*4`` row-major RGBA8888 with alpha last.
+ Returns:
+ ``(w, h, fmt_name, rgba_bytes)`` where ``rgba_bytes`` is length
+ ``w*h*4`` row-major RGBA8888 with alpha last.
 
-    Raises:
-        ValueError if the descriptor is malformed or its texels/CLUT overrun
-        the payload.
-    """
+ Raises:
+ ValueError if the descriptor is malformed or its texels/CLUT overrun
+ the payload.
+ """
     if not is_resident_raster(payload, desc_off):
         raise ValueError("no RW-PSP raster descriptor at payload+0x%x" % desc_off)
 
@@ -143,7 +143,7 @@ def decode_resident_raster(payload, desc_off):
 
     texel_off = desc_off + DESC_SIZE
     # The PSP GE swizzle operates on 16-byte-wide blocks, so the *stored* row
-    # stride is the logical byte width rounded up to a multiple of 16.  For T4
+    # stride is the logical byte width rounded up to a multiple of 16. For T4
     # this is always already a multiple of 16 (byte_width pads to >=16), so this
     # is a no-op for every raster that occurs in the console title; it only matters for the
     # synthetic narrow T8 (w<16) edge case, keeping the swizzle self-consistent.
@@ -185,10 +185,10 @@ def decode_resident_raster(payload, desc_off):
     clut = payload[clut_off:clut_off + clut_bytes]
 
     # level-0 indices: un-swizzle the byte plane, then read it with the stored
-    # ROW STRIDE ``wb`` (bytes/row).  For T4 narrow widths ``wb`` is padded up
+    # ROW STRIDE ``wb`` (bytes/row). For T4 narrow widths ``wb`` is padded up
     # to 16 (``byte_width``), so each row has ``w//2`` real index bytes followed
     # by padding - indexing densely (lin[p>>1]) would walk into that padding
-    # and corrupt every row after the first.  Strided indexing is correct for
+    # and corrupt every row after the first. Strided indexing is correct for
     # all widths and degenerates to the dense case when wb == w (T8) / w//2 (T4).
     end = texel_off + wb * h
     if end > len(payload):

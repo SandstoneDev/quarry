@@ -3,17 +3,17 @@
 
 Pulls the real front-end sprites out of the SA TXDs (the same ones CMenuManager loads
 from FrontEndFilenames[] in the original):
-  - "arrow"  (fronten1.txd, 64x128) - the blue cross/4-arrow SELECTION CURSOR drawn
-    next to the highlighted menu item.
-  - one menu BACKGROUND photo (fronten2.txd "back2"..., 512x512) - box-downscaled to
-    128x128, shown dimmed in the top-right corner like the SA pause screen.
+ - "arrow" (fronten1.txd, 64x128) - the blue cross/4-arrow SELECTION CURSOR drawn
+ next to the highlighted menu item.
+ - one menu BACKGROUND photo (fronten2.txd "back2"..., 512x512) - box-downscaled to
+ 128x128, shown dimmed in the top-right corner like the SA pause screen.
 
 frontend.bin (little-endian) ==================================================
-  u32 magic 'FEND'
-  u32 arrowW, arrowH            # 64,128
-  u32 bgW, bgH                  # 128,128
-  arrowW*arrowH*4  RGBA8888     # GU_PSM_8888 (alpha last)
-  bgW*bgH*4        RGBA8888
+ u32 magic 'FEND'
+ u32 arrowW, arrowH # 64,128
+ u32 bgW, bgH # 128,128
+ arrowW*arrowH*4 RGBA8888 # GU_PSM_8888 (alpha last)
+ bgW*bgH*4 RGBA8888
 ================================================================================
 Usage: python frontend_bake.py
 """

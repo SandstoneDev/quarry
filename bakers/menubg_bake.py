@@ -4,18 +4,18 @@
 Vanilla SA shows ONE fixed menu art (Vinewood) behind the pause menu. Our port swaps it by the
 player's city. The arts are the real SA menu backgrounds from fronten2.txd (the "back" photos):
 
-  city 0  LOS SANTOS   -> back8  ("VINEWOOD" sign - the vanilla SA menu art)
-  city 1  SAN FIERRO   -> back5  (blue city skyline silhouette)
-  city 2  LAS VENTURAS -> back3  (desert sunset / billboard)
-  city 3  COUNTRYSIDE  -> back2  (green hills)            <- also the default if city unknown
+ city 0 LOS SANTOS -> back8 ("VINEWOOD" sign - the vanilla SA menu art)
+ city 1 SAN FIERRO -> back5 (blue city skyline silhouette)
+ city 2 LAS VENTURAS -> back3 (desert sunset / billboard)
+ city 3 COUNTRYSIDE -> back2 (green hills) <- also the default if city unknown
 
 Each art is centre-cropped to 2:1, box-downscaled to 256x128 RGBA8888 (one PSP texture, 128 KB),
 so the runtime loads ONLY the active city's bg (lazy) and draws it full-screen under the UI.
 
 menubg.bin (little-endian) ====================================================
-  u32 magic 'MBG1'
-  u32 count, u32 w, u32 h            # 4, 256, 128
-  count * (w*h*4) RGBA8888           # GU_PSM_8888, city order above
+ u32 magic 'MBG1'
+ u32 count, u32 w, u32 h # 4, 256, 128
+ count * (w*h*4) RGBA8888 # GU_PSM_8888, city order above
 ================================================================================
 Usage: python menubg_bake.py
 """

@@ -7,12 +7,12 @@ header. The runtime lerps day->night per vertex by the DN balance; the sparse
 .nightd glow runs still overlay after it (tobj neon keeps working).
 
 Per vertex:
-  - model position-matched to an SA instance whose DFF carries the second
-    prelight set (chunk 0x0253F2F9): nearest source vertex (<=0.5u) -> its
-    authored night colour (this is where lit windows come from).
-  - everything else (no night chunk / unmatched / far vertex): the same
-    global darken the runtime would apply (darken5551: r*2 g*3 b*5 >>4 in
-    5-bit space), so the look degrades to exactly the current base.
+ - model position-matched to an SA instance whose DFF carries the second
+ prelight set (chunk 0x0253F2F9): nearest source vertex (<=0.5u) -> its
+ authored night colour (this is where lit windows come from).
+ - everything else (no night chunk / unmatched / far vertex): the same
+ global darken the runtime would apply (darken5551: r*2 g*3 b*5 >>4 in
+ 5-bit space), so the look degrades to exactly the current base.
 
 Usage: full_night_bake.py <chunks_dir> [--only region_12_2]
 """
@@ -44,7 +44,7 @@ def to5551(r, g, b):
 
 def night_verts_all(dff):
     """(pos Nx3 float32, rgb Nx3 float32) for EVERY vertex with a night colour.
-    v2: keep RGB888 floats - the IDW blend happens in RGB space, quantise later."""
+ v2: keep RGB888 floats - the IDW blend happens in RGB space, quantise later."""
     ps, cs = [], []
     for geo in dff.geometries:
         night = getattr(geo, "night_colors", None)

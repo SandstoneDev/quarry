@@ -6,15 +6,15 @@ batches -> welded vertex list (librw objUninstance order) -> validates against
 the PC version of the same model (vertex count + prelit bytes + night chunk).
 
 VIF chain layout (librw MatPipeline::instance, numBrokenAttribs==0):
-  16B header: DMAret | size-1, 0, VIF_FLUSH, msk_flush
-  per batch:
-    per attrib: [STMASK+mask | NOP+STMOD] STCYCL UNPACK(tag) payload(QWC-padded)
-    ITOP | nverts ; MSCALF/MSCNT ; then NOP,NOP (mid) or FLUSH,msk (last)
-  tristrip batches OVERLAP by 2 verts (collectData: datap advance nverts-2).
+ 16B header: DMAret | size-1, 0, VIF_FLUSH, msk_flush
+ per batch:
+ per attrib: [STMASK+mask | NOP+STMOD] STCYCL UNPACK(tag) payload(QWC-padded)
+ ITOP | nverts ; MSCALF/MSCNT ; then NOP,NOP (mid) or FLUSH,msk (last)
+ tristrip batches OVERLAP by 2 verts (collectData: datap advance nverts-2).
 
 UNPACK tag: (attribCode & 0xFF004000) | 0x8000 | nverts<<16 | vuAddr
-  codes: 0x68 V3_32(xyz f32) 0x6D V4_16 0x6E V4_8(rgba) 0x6A V3_8(normal)
-         0x64 V2_32(uv f32) 0x65 V2_16  | 0x4000 = unsigned
+ codes: 0x68 V3_32(xyz f32) 0x6D V4_16 0x6E V4_8(rgba) 0x6A V3_8(normal)
+ 0x64 V2_32(uv f32) 0x65 V2_16 | 0x4000 = unsigned
 """
 import struct
 import sys
@@ -54,7 +54,7 @@ def descend(b, path):
 
 def unpack_info(cmd):
     """VIF UNPACK cmd byte -> (ncomp, bytes_per_comp) or None.
-    cmd = 011m vnvl: vn[3:2]+1 components, vl[1:0]: 0=32bit 1=16bit 2=8bit."""
+ cmd = 011m vnvl: vn[3:2]+1 components, vl[1:0]: 0=32bit 1=16bit 2=8bit."""
     if (cmd & 0x60) != 0x60:
         return None
     vn = (cmd >> 2) & 3
@@ -118,7 +118,7 @@ def parse_ps2(path):
 
 def parse_chain(raw, expect_idx, tristrip, verts, uvs, cols, norms):
     """Walk the VIF chain, collecting per-batch attribute payloads with the
-    tristrip 2-vert overlap dropped (librw collectData semantics)."""
+ tristrip 2-vert overlap dropped (librw collectData semantics)."""
     # DMA-chain walk (SA world = broken-out sections referenced by DMAref).
     # Per batch: DMAref pairs (payload at addr, format+slot in the UNPACK tag)
     # then a DMAcnt inline block whose ITOP carries the batch's TRUE nverts

@@ -22,7 +22,7 @@ FRAME_NODENAME = 0x253F2FE
 
 def _children(blob, o, end):
     """Walk sibling RW chunks in [o, end). Each -> (type, size, bodyOff) where the 12-byte
-    header (type,size,libId) precedes bodyOff."""
+ header (type,size,libId) precedes bodyOff."""
     out = []
     while o + 12 <= end:
         typ, sz, _lib = struct.unpack_from("<III", blob, o)
@@ -34,7 +34,7 @@ def _children(blob, o, end):
 
 def _frame_names(blob, fl_body, fl_end):
     """FRAMELIST -> {frameIndex: nodeName}. The frame array STRUCT is first; a per-frame
-    EXTENSION follows, and the name lives in a FRAME node-name (0x253F2FE) chunk inside it."""
+ EXTENSION follows, and the name lives in a FRAME node-name (0x253F2FE) chunk inside it."""
     exts = [k for k in _children(blob, fl_body, fl_end) if k[0] == EXTENSION]
     names = {}
     for i, (_typ, sz, body) in enumerate(exts):
@@ -46,7 +46,7 @@ def _frame_names(blob, fl_body, fl_end):
 
 def split_clumps(blob):
     """{clumpFrameName.lower(): clump_sub_blob_bytes} for a (multi-)CLUMP DFF. The sub-blob is a
-    self-contained clump (its own 12-byte CLUMP header + body), so parse_geometry() reads it directly."""
+ self-contained clump (its own 12-byte CLUMP header + body), so parse_geometry() reads it directly."""
     blob = bytes(blob)
     out = {}
     for (typ, sz, body) in _children(blob, 0, len(blob)):
