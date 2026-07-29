@@ -7,7 +7,7 @@ namespace Quarry;
 /// Converter build identity, stamped into every data/ manifest.
 public static class QuarryInfo
 {
-    public const string Version = "v793";   // release tag; bump per release (see RELEASE_PLAYBOOK). UpdateChecker string-compares this to the latest GitHub release tag.
+    public const string Version = "v794";   // release tag; bump per release (see RELEASE_PLAYBOOK). UpdateChecker string-compares this to the latest GitHub release tag.
 }
 
 public sealed record DiscInfo(string ElfId, string Ver, string VMode, bool Supported)

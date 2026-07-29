@@ -119,7 +119,7 @@ public static class ConvertPipeline
             DefaultOn: true, Available: true, Steps: new[]
             {
                 new Step("Extract audio inputs", "",           0, StepExtractAudioInputs),
-                new Step("Bake SFX pool",        "audio-sfx",  2, StepBakeSfx),
+                new Step("Bake SFX pool",        "audio-sfx",  3, StepBakeSfx),   // v793: BEATS is staged with the audio inputs now, so the mission jingle finally lands in sfx.bin; bumping forces the re-bake past the incremental manifest
                 new Step("Bake ambience zones",  "audio-amb",  1, StepBakeAmbience),   // the zone table
                 new Step("Bake ambience tracks", "audio-ambx", 3, StepBakeAmbienceTracks), // the audio behind it. v2: the ADPCM frame grid starts 4 bytes after the element header - decoding from the old offset produced noise
                 new Step("Bake radio",           "audio-radio",3, StepBakeRadio),      // slow: ~1.5 GB of stations. v2: same 4-byte stream-data offset fix
