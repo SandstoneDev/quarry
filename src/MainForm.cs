@@ -12,6 +12,10 @@ public sealed class MainForm : Form
     private readonly Label _detect = new() { AutoSize = true, Text = "no image selected" };
     private readonly Button _convert = new() { Text = "Convert", Enabled = false };
     private readonly Button _cancel = new() { Text = "Cancel", Enabled = false };
+    // A convert that goes wrong is diagnosed from the log file, and a tester has to be able
+    // to FIND it. The path is printed when the run ends, but that is the one moment nobody is
+    // reading, and a failed run is exactly when it matters. This opens the folder outright.
+    private readonly Button _openLog = new() { Text = "Open log folder" };
     private readonly Label _eta = new() { AutoSize = true, Text = "" };
     private readonly TextBox _log = new()
     {
@@ -50,6 +54,7 @@ public sealed class MainForm : Form
         outBtn.Click += (_, _) => PickOut();
         _convert.Click += (_, _) => RunConvert();
         _cancel.Click += (_, _) => _cts?.Cancel();
+        _openLog.Click += (_, _) => OpenLogFolder();
         _checkUpd.Click += async (_, _) => await CheckUpdates(manual: true);
 
         var isoLbl = new Label { Text = "Disc image (.iso) of YOUR OWN game copy:", AutoSize = true };
@@ -81,7 +86,8 @@ public sealed class MainForm : Form
         int afterSections = 134 + secH + 10;
         _convert.SetBounds(x, afterSections, 120, 30);
         _cancel.SetBounds(x + 130, afterSections, 90, 30);
-        _eta.SetBounds(x + 232, afterSections + 7, w - 232, 18);
+        _openLog.SetBounds(x + 230, afterSections, 130, 30);
+        _eta.SetBounds(x + 372, afterSections + 7, w - 372, 18);
 
         int logTop = afterSections + 42;
         _log.SetBounds(x, logTop, w, ClientSize.Height - logTop - 42);
@@ -94,7 +100,7 @@ public sealed class MainForm : Form
         Controls.AddRange(new Control[]
         {
             isoLbl, _isoBox, isoBtn, _detect, outLbl, _outBox, outBtn,
-            _sections, _convert, _cancel, _eta, _log, _version, _updStatus, _checkUpd,
+            _sections, _convert, _cancel, _openLog, _eta, _log, _version, _updStatus, _checkUpd,
         });
         ResumeLayout();
 
@@ -175,6 +181,7 @@ public sealed class MainForm : Form
             .Where(s => s.Id == "core" || _rows.First(r => r.SectionId == s.Id).Checked).ToList();
 
         string logPath = OpenLogFile();   // timestamped file log so real per-step timings survive the run
+        AppendLog($"log file: {logPath}");   // stated up front: a run that hangs never reaches the closing line
 
         var cx = new ConvertContext
         {
@@ -218,13 +225,51 @@ public sealed class MainForm : Form
                 _logFile = new System.IO.StreamWriter(path, append: false) { AutoFlush = true };
                 _logFile.WriteLine($"Quarry {QuarryInfo.Version} - convert log");
                 _logFile.WriteLine($"started {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                // Environment goes in the header because these logs are read by someone who does
+                // not have the tester's machine: OS build, bitness and free space explain a whole
+                // class of failures (a 32-bit process, a full disk) that otherwise look arbitrary.
+                _logFile.WriteLine($"system  {Environment.OSVersion.VersionString}, {(Environment.Is64BitProcess ? "64-bit" : "32-bit")} process, .NET {Environment.Version}");
                 _logFile.WriteLine($"iso     {_isoBox.Text}");
                 _logFile.WriteLine($"out     {_outBox.Text}");
+                try
+                {
+                    var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(_outBox.Text)) ?? "C:\\");
+                    _logFile.WriteLine($"space   {drive.AvailableFreeSpace / (1024 * 1024 * 1024)} GB free on {drive.Name}");
+                }
+                catch { /* unreadable drive: not worth failing a convert over */ }
                 _logFile.WriteLine(new string('-', 64));
             }
         }
         catch { /* logging is best-effort; never block a convert */ }
         return path;
+    }
+
+    // Open the log folder, selecting the newest convert log so a tester can attach it
+    // without hunting. Falls back to opening the folder, then to showing the path as text
+    // if the shell refuses - this is a convenience and must never throw into a convert.
+    private void OpenLogFolder()
+    {
+        string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                                  "Quarry", "logs");
+        try
+        {
+            Directory.CreateDirectory(dir);
+            var newest = new DirectoryInfo(dir).GetFiles("convert_*.log")
+                                               .OrderByDescending(f => f.LastWriteTimeUtc)
+                                               .FirstOrDefault();
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                Arguments = newest is null ? $"\"{dir}\"" : $"/select,\"{newest.FullName}\"",
+                UseShellExecute = true,
+            };
+            System.Diagnostics.Process.Start(psi);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Logs are in:{Environment.NewLine}{dir}{Environment.NewLine}{Environment.NewLine}({ex.Message})",
+                            "Quarry", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
     }
 
     private void CloseLogFile()
