@@ -38,8 +38,7 @@ engine can translate as well (degenerate / zero-extent models get scale=1.0).
 UV scale convention
 -------------------
 UVs are stored as GU_TEXTURE_16BIT fixed-point: raw = round(uv * UV_FIXED_ONE).
-THE GE READS THE 16 BITS AS UNSIGNED u1.15 (Sony GE-UM 6.1/6.5, GE-CR p13) --
-there is no signed texcoord path in the hardware. With the engine's global
+THE GE READS THE 16 BITS AS UNSIGNED u1.15 (Sony GE-UM 6.1/6.5, GE-CR p13) - there is no signed texcoord path in the hardware. With the engine's global
 sceGuTexScale(8,8) the sampling window is [0,16) tiles, wrapping mod 16, so
 the honest packing is raw mod 65536 (bit-identical to the old signed value
 for |uv| < 8; correct instead of destroyed for larger magnitudes). Bakers

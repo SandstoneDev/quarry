@@ -5,7 +5,7 @@ Streams (radio / cutscene / theme) live in XOR-obfuscated ("ADF") pak containers
 AUDIO/STREAMS/<pak>. A track is located by TRAKLKUP.DAT + STRMPAKS.DAT; its OGG Vorbis
 data starts 0x1F84 bytes into the track region (a tTrackInfo beat-grid header is skipped)
 and is de-obfuscated by a 16-byte rolling XOR keyed on the absolute file offset.
-See docs/gta_sa/12_audio/audio_streaming.md.
+
 
  TRAKLKUP.DAT - tTrackLookup[N], 0xC each: {u8 pakIdx; u8 pad[3]; u32 offset; u32 length}
  STRMPAKS.DAT - StreamPack[M], 0x10 each: char name[16]

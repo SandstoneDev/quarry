@@ -7,8 +7,7 @@ against the SA IPL placements, looks up each matched model's IDE `Flags` int, de
 4 render bits below, and writes them keyed by the tile-local MODEL index:
 
  TWOSIDED IDE 0x200000 DISABLE_BACKFACE_CULLING -> .mflags bit0
- ADDITIVE IDE 0x8 ADDITIVE -> .mflags bit1 (objs section ONLY --
- tobj-section additive is already carried by region_X_Y.tobj
+ ADDITIVE IDE 0x8 ADDITIVE -> .mflags bit1 (objs section ONLY - tobj-section additive is already carried by region_X_Y.tobj
  bit7; load_defs tags every tobj row with a 'time_on' key, so a
  def WITHOUT 'time_on' == objs section)
  DRAWLAST IDE 0x4 DRAW_LAST -> .mflags bit2

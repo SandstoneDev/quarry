@@ -77,8 +77,7 @@ def is_native_skinned(blob):
 def _compute_normals(positions, tris, nvert):
     """Per-vertex normals = area-weighted average of adjacent face normals. The PS2
  skinned stream carries NO normal attribute (cutscene actors drop it, so the weld
- can't split on it either), so we synthesise smooth normals from the triangles --
- exactly hero_bake._compute_normals, kept here to avoid a circular import."""
+ can't split on it either), so we synthesise smooth normals from the triangles - exactly hero_bake._compute_normals, kept here to avoid a circular import."""
     acc = [[0.0, 0.0, 0.0] for _ in range(nvert)]
     for tri in tris:
         v0, v1, v2 = tri[0], tri[1], tri[2]

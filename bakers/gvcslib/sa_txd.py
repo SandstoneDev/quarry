@@ -84,8 +84,7 @@ def _gs_transfer_addr(x: int, y: int, w: int) -> int:
     """Return the unit index in the swizzled transfer stream for texel (x, y).
 
  Units are bytes for PSMT8 (PSMCT32 transfer) and nibbles for PSMT4
- (PSMCT16 transfer). w is the stored row stride in texel units --
- max(width, 16) for PSMT8 / max(width, 32) for PSMT4 (RW min transfer).
+ (PSMCT16 transfer). w is the stored row stride in texel units - max(width, 16) for PSMT8 / max(width, 32) for PSMT4 (RW min transfer).
  Validated against librw's swizzle() and the classic Sparky unswizzle8
  (both give the identical mapping).
  """

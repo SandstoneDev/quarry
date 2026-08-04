@@ -9,8 +9,7 @@ That poisoned the .night/.nightd bakes (lodganghous night set is uniformly
 dull -> authored 255-white windows lost) and can poison any name-driven
 texture repair the same way.
 
-Fix: collect ALL candidates within 0.5u and pick by DFF vertex count --
-the deployed model's vertex pool is always >= its true source (tessellation
+Fix: collect ALL candidates within 0.5u and pick by DFF vertex count - the deployed model's vertex pool is always >= its true source (tessellation
 only adds verts), so the best candidate is the LARGEST DFF that still fits
 under the deployed count (with a small tolerance). A deployed LOD model
 (few hundred verts) correctly rejects the HI DFF (thousands) and keeps the

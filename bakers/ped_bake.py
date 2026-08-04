@@ -4,8 +4,7 @@
 peds.bin = 'PEDS' + u32 count + count HRO2 model streams back-to-back
 (the exact hero.bin format, loaded by CSkelAnim_LoadPeds into models 1..N).
 
-Clips per ped: IDLE_stance + WALK_civi + run_civi (locomotion slots 0/1/2 --
-the runtime blends by move ratio R; ambient peds use R<=1 in phase 1).
+Clips per ped: IDLE_stance + WALK_civi + run_civi (locomotion slots 0/1/2 - the runtime blends by move ratio R; ambient peds use R<=1 in phase 1).
 Female models use the WOMAN_* clip set.
 
 Model picks (LS street civs, checked against pedgrp): 2 male + 2 female.

@@ -6,8 +6,7 @@ The mirror image of pmap_dd_bump.py (which RAISES alpha-model dd to a floor). Th
 tool LOWERS the draw distance of opaque, non-landmark models to a cap so fewer distant
 instances survive the renderer's frustum+distance test (their LODxxx proxy is meant to
 cover them past the cap) - aimed at the dense downtown belt where the frame is bound by
-draw-call / texture-bind / CLUT-upload count, not triangles or streaming (see
-docs/gta_sa_psp/research/region_9_3_slow_tile_diagnosis.md).
+draw-call / texture-bind / CLUT-upload count, not triangles or streaming ().
 
 Why this is safe on v3 (lz4) without decompressing anything
 -----------------------------------------------------------

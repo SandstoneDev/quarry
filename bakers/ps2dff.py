@@ -4,7 +4,7 @@
 Decodes the PS2-native RenderWare DFF layout straight from the user's disc
 into plain triangles + materials, INCLUDING both prelight sets: on PS2 the
 vertex stream carries day AND night colours interleaved (V4_16 colour: low
-byte = day, high byte = night) - see docs/gta_sa_psp/research/ps2_dff_format.md
+byte = day, high byte = night) - 
 and tools/ps2_dff_probe.py for the discovery trail (verified byte-exact against
 the PC twin of ganghous01_lax.dff; welded vertex count matches the authored
 count exactly).
@@ -617,7 +617,7 @@ def load_dff(b, pos_scale=POS_SCALE):
 # (gvcslib work/sa_export_pmap.py) can run on THIS decoder via monkey-patch:
 # our DMA-tag walk survives layouts its resync-scan skips, and it carries the
 # correct day colours (gvcslib's own decoder packs the HIGH bytes = the NIGHT
-# set - see docs/gta_sa_psp/research/ps2_dff_format.md). Night colours ride
+# set -). Night colours ride
 # along in colors_night for the upcoming.night sidecar export.
 #
 # Positions stay FRAME-LOCAL (== what the atomic path renders, see the module

@@ -4,7 +4,7 @@
 Slices input_tx128.pmap (full map, 24u-tessellated, texels still at the 128 cap)
 into 900u region tiles, then runs the production chunk pipeline with ONE change:
 the texture downscale keeps wet_road-model textures at 128px and caps everything
-else at the production 64px. See docs/gta_sa_psp/specs/2026-07-11-tx128-road-tier-design.md.
+else at the production 64px. 
 
 Usage: python bake_tx128road_chunks.py [out_dir]
 """

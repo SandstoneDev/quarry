@@ -3,7 +3,7 @@
 the FRAMELIST skeleton from a the source game PC ped DFF. Port-side codec (gvcslib stays
 READ-ONLY); reuses gvcslib.sa_dff.parse_chunks for the chunk tree.
 
-Byte layout per docs/gta_sa/18_data_formats/dff_extensions.md (byte-validated):
+Byte layout (byte-validated):
  SKIN (0x116) in GEOMETRY->EXTENSION:
  u8 numBones, u8 numUsedBones, u8 maxWeights, u8 pad
  u8[numUsedBones] usedBoneArray

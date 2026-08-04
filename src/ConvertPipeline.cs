@@ -59,7 +59,7 @@ public static class ConvertPipeline
 
     // A pipeline step. stageId+version drive the incremental manifest: a stage
     // with a stable id whose version and output hashes are unchanged is SKIPPED
-    // on re-convert. Setup steps (ISO read, detect) have stageId="" -> always
+    // on re-convert. Setup steps (ISO read, detect) have stageId= -> always
     // run, never manifest-tracked (they touch no data/ output).
     public readonly record struct Step(string Name, string StageId, int Version,
                                        Func<ConvertContext, bool> Fn);
@@ -71,7 +71,7 @@ public static class ConvertPipeline
                                  bool DefaultOn, bool Available, Step[] Steps);
 
     // Prepare phase - always runs first, before any section. Reads the disc and
-    // stages the small plain files; touches no data/ output (stageId "").
+    // stages the small plain files; touches no data/ output (stageId).
     private static readonly Step[] PrepareSteps =
     {
         new("Open disc image",    "", 0, StepOpen),
@@ -132,7 +132,7 @@ public static class ConvertPipeline
             DefaultOn: true, Available: true, Steps: new[]
             {
                 new Step("Extract vehicle inputs", "",         0, StepExtractVehicleInputs),
-                new Step("Bake vehicle roster",    "vehicles", 3, StepBakeVehicles),   // car.bin + veh_index + veh/*.bin (per-vehicle non-fatal). v2: vehicle position scale fixed (was 8x) - bump forces a re-bake past the incremental manifest
+                new Step("Bake vehicle roster",    "vehicles", 4, StepBakeVehicles),   // car.bin + veh_index + veh/*.bin (per-vehicle non-fatal). v2: vehicle position scale fixed (was 8x). v4: the wheel mesh is picked by rule, so buccanee, intruder, petrotr, combine and raindanc stop baking with no wheels - bump forces a re-bake past the incremental manifest
                 new Step("Bake effects",           "carenv",   2, StepBakeCarEnv),     // non-fatal. v2: +clouds.bin +fxtex.bin (were never baked)
             }),
         // - coming soon: bakers exist in tools/ but are not wired this pass --
@@ -623,11 +623,11 @@ public static class ConvertPipeline
     // cull.ipl carries the freeway air-resistance zones baked into data/cull_air.bin.
     // NOTE: despite living under DATA/MAPS/, it is a plain loose ISO file on every
     // real PS2 SA disc checked (EU v1.03 + v2.01) - NOT packed inside MODELS/GTA3.IMG.
-    // That archive's own .ipl entries are only the per-zone streaming placements
-    // (countryn_stream0.ipl, vegasw_stream3.ipl, ...) plus a handful of mission IPLs
+    // That archive's own.ipl entries are only the per-zone streaming placements
+    // (countryn_stream0.ipl, vegasw_stream3.ipl,...) plus a handful of mission IPLs
     // (crack.ipl, truthsfarm.ipl, carter.ipl); no "cull" among its 16k+ entries.
     // Staged via PlainFiles like every other always-loaded top-level file (main.scm,
-    // handling.cfg, ...), then baked the same way timecyc/zones are.
+    // handling.cfg,...), then baked the same way timecyc/zones are.
     private static bool StepBakeCull(ConvertContext cx) =>
         BakerStep(cx, "cull_air_bake.py", "data/maps/cull.ipl", Path.Combine("world", "cull_air.bin"));
 
@@ -636,9 +636,9 @@ public static class ConvertPipeline
     // Extract the disc's model + map files into an SA_ROOT tree the ps2world
     // chain can read: MODELS/GTA3.IMG + MODELS/GTA_INT.IMG (skip the GTA3_1.IMG
     // byte-dup) and everything under DATA/ except the huge SCRIPT.IMG. gta3.img
-    // is ~1 GB -> this is the slow, disk-bound part. stageId "" => always runs
+    // is ~1 GB -> this is the slow, disk-bound part. stageId => always runs
     // when the world section runs (it writes into TempDir, not data/); the bake
-    // step's manifest tracks the real .pmap outputs instead.
+    // step's manifest tracks the real.pmap outputs instead.
     private static bool StepExtractWorldInputs(ConvertContext cx)
     {
         string gameRoot = Path.Combine(cx.TempDir, "game");
@@ -716,7 +716,7 @@ public static class ConvertPipeline
             ("grass_bake.py",         new[] { worldDir },                                false),
             ("dyn_sidecar_bake.py",   new[] { worldDir },                                false),
             ("road_sidecar_bake.py",  new[] { worldDir },                                false),
-            ("mflags_sidecar_bake.py",new[] { worldDir },                                false),   // b749/b759: SA IDE render flags (TWOSIDED/ADDITIVE/DRAWLAST/NOZWRITE) -> region_*.mflags; MUST precede lz4 (reads the uncompressed .pmap header)
+            ("mflags_sidecar_bake.py",new[] { worldDir },                                false),   // b749/b759: SA IDE render flags (TWOSIDED/ADDITIVE/DRAWLAST/NOZWRITE) -> region_*.mflags; MUST precede lz4 (reads the uncompressed.pmap header)
             ("ps2world_pilot.py",     new[] { saRoot, nightDir, "all", "--night" },      false),
             ("ps2night_sidecar.py",   new[] { nightDir, worldDir },                      false),
             ("pmap_lz4.py",           new[] { "--dir", worldDir },                       true),
@@ -742,7 +742,7 @@ public static class ConvertPipeline
 
         // chunkset selector for the engine (the pilot already wrote regions.bin).
         File.WriteAllText(Path.Combine(cx.OutDir, "world", "chunkset.txt"), "ps2full");
-        // night twin is an intermediate: its colours were folded into the .night
+        // night twin is an intermediate: its colours were folded into the.night
         // sidecars beside the day pmaps - drop it so it isn't shipped or tracked.
         try { if (Directory.Exists(nightDir)) Directory.Delete(nightDir, recursive: true); }
         catch { /* best-effort */ }
@@ -772,7 +772,7 @@ public static class ConvertPipeline
 
     // Stage the HUD inputs into TempDir/game. Self-contained: also pulls MODELS/GTA3.IMG
     // (the 144 radar tiles + blip sprites) if the world step hasn't already staged it.
-    // stageId "" => always runs with the section (writes into TempDir, not data/).
+    // stageId => always runs with the section (writes into TempDir, not data/).
     private static bool StepExtractHudInputs(ConvertContext cx)
     {
         string gameRoot = Path.Combine(cx.TempDir, "game");
@@ -812,7 +812,7 @@ public static class ConvertPipeline
     }
 
     // Bake the HUD sprites, the four fonts and the menu/loading textures. StepBakeWorld-
-    // style: SA_ROOT points the patched bakers at the disc extract; each writes its .bin
+    // style: SA_ROOT points the patched bakers at the disc extract; each writes its.bin
     // into cx.OutDir/hud so the manifest snapshot tracks it. Aborts on a baker failure --
     // EXCEPT loadscs: PS2 has no LOADSCS.txd (INTRO*.TXD hold one art each, not the 16
     // named PC arts), so its PC->PS2 loading-art remap is a pending item -> non-fatal.
@@ -900,9 +900,9 @@ public static class ConvertPipeline
     // Stage the interior inputs into TempDir/game (the same SA_ROOT tree the world +
     // HUD chains use). GTA_INT.IMG carries the interior DFF/TXD/COL + binary stream
     // IPLs; the DATA/ tree carries gta.dat, the interior IDE/IPL maps and DEFAULT.IDE.
-    // gta3.img is also needed - sa_source.open_img() resolves a few interior props /
+    // gta3.img is also needed - sa_source.open_img resolves a few interior props /
     // textures out of the main archive. Self-contained: reuse whatever the world/HUD
-    // steps already staged, pull the rest. stageId "" => always runs with the section.
+    // steps already staged, pull the rest. stageId => always runs with the section.
     private static bool StepExtractInteriorInputs(ConvertContext cx)
     {
         string gameRoot = Path.Combine(cx.TempDir, "game");
@@ -984,7 +984,7 @@ public static class ConvertPipeline
         return true;
     }
 
-    // Bake every enterable interior -> interiors/interior_<name>.pmap + .col via the
+    // Bake every enterable interior -> interiors/interior_<name>.pmap +.col via the
     // all-interiors driver (like the world chain drives ps2world_pilot). StepBakeWorld-
     // style: SA_ROOT points the PS2-codec-swapped bakers at the disc extract; the driver
     // writes into cx.OutDir/interiors so the manifest snapshot tracks the outputs.
@@ -1032,7 +1032,7 @@ public static class ConvertPipeline
     // use): AUDIO/CONFIG/*.DAT (bank + pak lookups, a few KB) + the baked SFX paks + the
     // ambience map DATA/MAPS/AUDIOZON.IPL + AUDIO/STREAMS/AMBIENCE.PAK (the one ambience
     // stream; the other ~2 GB of STREAMS is radio / speech / cutscene -> deferred to phase 4).
-    // stageId "" => always runs with the section (writes into TempDir, not data/).
+    // stageId => always runs with the section (writes into TempDir, not data/).
     private static bool StepExtractAudioInputs(ConvertContext cx)
     {
         string gameRoot = Path.Combine(cx.TempDir, "game");
@@ -1141,16 +1141,16 @@ public static class ConvertPipeline
     // - vehicles section ---------------------------------------------------
 
     // Stage the vehicle inputs into TempDir/game (the SA_ROOT tree the other sections share):
-    //   MODELS/GTA3.IMG            - the vehicle DFF + per-model TXD source (~1 GB; reused if any
-    //                                 earlier section already pulled it)
-    //   MODELS/GENERIC/VEHICLE.TXD - the SHARED vehicle textures (generic/grunge/lights/tyres/
-    //                                 plates/env) every model falls back to; staged by NO other
-    //                                 section, so it is pulled here
-    //   MODELS/PARTICLE.TXD        - headlight sprite, cloud + corona art (effects step)
-    //   MODELS/EFFECTS.TXD         - the smoke and fireball particles (effects step)
-    //   DATA/CARCOLS.DAT + VEHICLES.IDE + HANDLING.CFG - paint combos, the roster and the handling
-    //                                 columns (tiny; reused if the world/interior step staged DATA)
-    // stageId "" => always runs with the section (writes into TempDir, not data/).
+    // MODELS/GTA3.IMG - the vehicle DFF + per-model TXD source (~1 GB; reused if any
+    // earlier section already pulled it)
+    // MODELS/GENERIC/VEHICLE.TXD - the SHARED vehicle textures (generic/grunge/lights/tyres/
+    // plates/env) every model falls back to; staged by NO other
+    // section, so it is pulled here
+    // MODELS/PARTICLE.TXD - headlight sprite, cloud + corona art (effects step)
+    // MODELS/EFFECTS.TXD - the smoke and fireball particles (effects step)
+    // DATA/CARCOLS.DAT + VEHICLES.IDE + HANDLING.CFG - paint combos, the roster and the handling
+    // columns (tiny; reused if the world/interior step staged DATA)
+    // stageId => always runs with the section (writes into TempDir, not data/).
     private static bool StepExtractVehicleInputs(ConvertContext cx)
     {
         string gameRoot = Path.Combine(cx.TempDir, "game");
@@ -1231,7 +1231,7 @@ public static class ConvertPipeline
         { cx.Log("   car_bake.py (car.bin) FAILED - vehicle bake aborted"); return false; }
 
         // 2) the full roster + veh_index.bin (the slow part, ~200 models). Per-vehicle failures are
-        //    non-fatal: the driver catches each and indexes only what actually baked.
+        // non-fatal: the driver catches each and indexes only what actually baked.
         cx.Log($"   -> car_bake.py --all --out {vehOut}   (roster + index; the slow one)");
         if (!PythonRunner.Run(s_python, sc, new[] { "--all", "--out", vehOut }, cx.Log, env, null, cx.Ct, cx.OnPercent))
         { cx.Log("   car_bake.py --all FAILED - vehicle bake aborted"); return false; }
@@ -1328,7 +1328,7 @@ public static class ConvertPipeline
     // byte-identical to PC; only the TXDs are PS2-native, handled by the baker), ANIM/PED.IFP
     // (base locomotion/idle/fight clips, byte-exact ANP3), and GTA3.IMG (the ambient ped
     // models). PED.IFP goes into the game tree so hero_bake's SA_ROOT-relative sa_ifp finds
-    // it. Reuse whatever earlier sections already staged. stageId "" => always runs.
+    // it. Reuse whatever earlier sections already staged. stageId => always runs.
     private static bool StepExtractPedInputs(ConvertContext cx)
     {
         string gameRoot = Path.Combine(cx.TempDir, "game");
@@ -1466,15 +1466,15 @@ public static class ConvertPipeline
     // - cutscenes section --------------------------------------------------
 
     // Stage the cutscene inputs into TempDir/game (the SA_ROOT tree the other sections share):
-    //   ANIM/CUTS.IMG       - intro1a .cut/.dat (camera), .cut TEXT (subtitles), .ifp (ANPK anim)
-    //   MODELS/PLAYER.IMG   - the csplay/CJ cutscene actor (PLATFORM-NEUTRAL -> bakes on PS2)
-    //   MODELS/CUTSCENE.IMG - the cssmoke actor + csbat/csframe/csmomchair props (PS2-NATIVE VIF
-    //                          geometry, flags 0x01010037 -> deferred to the ambient-ped codec,
-    //                          task #36; the bakers skip them and write valid containers)
-    //   TEXT/AMERICAN.GXT   - subtitle strings
-    //   AUDIO/CONFIG/*.DAT + AUDIO/STREAMS/CUTSCENE.PAK - the audio attempt (PS2 stream is VAG,
-    //                          not PC-OGG -> cutaudio soft-skips the .ogg; subtitles still bake)
-    // Self-contained: reuses whatever the peds/audio sections already staged. stageId "" =>
+    // ANIM/CUTS.IMG - intro1a.cut/.dat (camera),.cut TEXT (subtitles),.ifp (ANPK anim)
+    // MODELS/PLAYER.IMG - the csplay/CJ cutscene actor (PLATFORM-NEUTRAL -> bakes on PS2)
+    // MODELS/CUTSCENE.IMG - the cssmoke actor + csbat/csframe/csmomchair props (PS2-NATIVE VIF
+    // geometry, flags 0x01010037 -> deferred to the ambient-ped codec,
+    // task #36; the bakers skip them and write valid containers)
+    // TEXT/AMERICAN.GXT - subtitle strings
+    // AUDIO/CONFIG/*.DAT + AUDIO/STREAMS/CUTSCENE.PAK - the audio attempt (PS2 stream is VAG,
+    // not PC-OGG -> cutaudio soft-skips the.ogg; subtitles still bake)
+    // Self-contained: reuses whatever the peds/audio sections already staged. stageId =>
     // always runs with the section (writes into TempDir, not data/).
     private static bool StepExtractCutsceneInputs(ConvertContext cx)
     {

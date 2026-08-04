@@ -4,8 +4,7 @@
 The whole-map lod.bin (lod_bake.py) keys instances by GLOBAL index, which is useless
 once the map is sliced into region tiles (each tile re-numbers its instances 0..N).
 This bakes one .lod PER tile, keyed by that tile's LOCAL instance index, so the
-runtime LOD chain (detail XOR proxy mutual exclusion) works in chunk/region mode --
-killing the detail+proxy overdraw the global stretch fallback causes.
+runtime LOD chain (detail XOR proxy mutual exclusion) works in chunk/region mode - killing the detail+proxy overdraw the global stretch fallback causes.
 
 A detail and its LOD proxy sit at the same XY, so they almost always land in the SAME
 tile -> the link resolves locally; a proxy in a neighbour tile gets -1 (the detail

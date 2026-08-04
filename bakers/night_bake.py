@@ -1,4 +1,4 @@
-"""Step 1 of the region day/night prelight pipeline (see docs/.../dn_prelight_plan.md).
+"""Step 1 of the region day/night prelight pipeline ().
 
 Produce a NIGHT vertex-colour stream aligned 1:1 to the PRE-tessellation whole-map
 `sa_full.pmap` vertex pool. We replicate `sa_export_pmap.build_pmap`'s enumeration EXACTLY

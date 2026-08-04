@@ -3,8 +3,7 @@
 
 SA plays STREAMED ambience tracks per AUDIO ZONE (data/maps/Audiozon.ipl 'auzo'
 rows; CAEAmbienceTrackManager::UpdateAmbienceTrackAndVolume maps zoneId->track,
-0x4D6E60). Most zones are venue interiors (bar chatter, restaurant hum, ammunation)
--- exactly what the port's interiors lack.
+0x4D6E60). Most zones are venue interiors (bar chatter, restaurant hum, ammunation) - exactly what the port's interiors lack.
 
 This bake:
  1) parses Audiozon.ipl auzo rows (name, zoneId),

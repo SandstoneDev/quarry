@@ -11,7 +11,7 @@ virtual machine. The interpreter (EBOOT FUN_0005e5e8) walks a flat byte stream
 
 Each handler consumes ``argc`` operands. Operands are self-delimiting: a 1-byte
 TYPE tag precedes the value, and the operand-reader (EBOOT FUN_0006189c, with the
-per-tag jumptable @ 0x375c88) advances IP by a fixed amount per tag. The widths
+per-tag ) advances IP by a fixed amount per tag. The widths
 below are the *authoritative* ones recovered from the jumptable handlers
 (0x061940..0x061a5c) - total bytes consumed *including* the tag byte:
 

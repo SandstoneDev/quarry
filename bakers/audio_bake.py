@@ -11,7 +11,7 @@ producers actually trigger (footsteps by surface, collision impacts, bullet hits
 horn, rain, swim, frontend UI, CJ pain grunts).
 
 sfx.bin (little-endian) ========================================================
-Header @0x00 (0x20):
+ (0x20):
  u32 magic 'SFXB' = 0x42584653
  u32 version = 1
  u32 nBanks, nSounds
@@ -19,7 +19,7 @@ Header @0x00 (0x20):
  u32 blobSize
  u32 sampleRateMax # (info) highest source rate baked
  u32 reserved
-BankRec[nBanks] @0x20 (0x10):
+BankRec[nBanks] (0x10):
  u16 bankId # eSoundBank
  i16 slotHint # eSoundBankSlot to preload into (-1 = addressed by bankId only)
  u32 firstSound # index into SoundRec[]

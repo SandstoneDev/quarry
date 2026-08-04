@@ -13,8 +13,7 @@ lod_bake_regions afterwards anyway to be safe).
 Usage: python pmap_tex_downscale.py <region_dir> [maxdim=64] [--road-tier <px>]
 
 --road-tier <px> (b397, the tx128 road tier): textures used by wet_road MODELS
-(the same position-match as road_sidecar_bake) cap at <px> instead of maxdim --
-sharp asphalt/lane markings while everything else stays at the 64 budget.
+(the same position-match as road_sidecar_bake) cap at <px> instead of maxdim - sharp asphalt/lane markings while everything else stays at the 64 budget.
 """
 import sys, os, glob
 

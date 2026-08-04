@@ -8,8 +8,8 @@ thin shim re-shapes it into the object the bake code already consumes. Paint + I
  - ps2dff.py : PS2-native clump parse (frames, _ok/_dam atomics, binmesh)
  - formats/carcols.py : the REAL paint pipeline - marker material colours
  (60,255,0)=primary (255,0,175)=secondary (0,255,255)=tertiary
- (255,0,255)=quaternary (confirmed from the original build
- SetEditableMaterials in the original) -> carcols palette colour.
+ (255,0,255)=quaternary (confirmed from the source game
+ ) -> carcols palette colour.
  - core/imgarchive.py : gta3.img
 
 What CAR2 got wrong / lacked, fixed here:
@@ -56,8 +56,7 @@ byte-identical, see the writer below + Vehicle.c load_carlike - they are the tru
  GearDownL WindMult MoveRes TurnRes[3] SpeedRes[3])
  u8 colPrim[3], colSec[3], pad[2]
  f32 seat[3]; f32 wheelScale, wheelRadius
- f32 wheelMount[4][3] (raw DFF dummies; coincident tandem pairs kept --
- the runtime spreads them like the bike +-0.3)
+ f32 wheelMount[4][3] (raw DFF dummies; coincident tandem pairs kept - the runtime spreads them like the bike +-0.3)
  u8 nProp, pad[3]
  f32 propAnchor[2][4] (xyz = shaft pivot, w = spin axis code: 1.0 = Y)
  ... then COL box+spheres / tex table / comps / vlo / wheel / prim blocks as CAR4.
@@ -79,6 +78,7 @@ import deploy_util
 # geometry the PC SAW formats.dff parser can't read (the world/interior swap).
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ps2dff
+from wheel_pick import WHEEL_ALIASES, pick_wheel_node
 
 SAW = os.environ.get("SAW_ROOT", "")
 sys.path.insert(0, SAW)
@@ -617,7 +617,7 @@ def bake(dff_name="bravura", txd_name="bravura", handling="BRAVURA",
     vloS, vloC, vloPrims = pack_run_merged(bake_atomic("chassis_vlo"), textable)
 
     # ---- wheel: single atomic, wheel-local (rotation kept, translation stripped) ----
-    wa = frame_of.get("wheel")
+    wa = pick_wheel_node(frame_of)
     wheel_prims = []; wS = 1.0; wC = (0, 0, 0); wrad = 0.0
     if wa is not None:
         wf = W[wa.frame_index]
@@ -864,7 +864,6 @@ PLANE_PANELS = [
     ("misc_b",       "nozzle_b", 8, 0),
 ]
 PLANE_DOORS = [("door_lf", "door_lf", 1, 2), ("door_rf", "door_rf", 1, 2)]
-WHEEL_ALIASES = ("wheel", "wheel1", "wheel_l")
 UV_LIMIT = 8.0            # |s16 UV * 4096| ceiling on the GE (psp-developer trap #1)
 
 
@@ -1018,10 +1017,8 @@ def bake_plane(dff_name, txd_name, handling, carcols_name, wheel_scale, out_path
     vlo_meshes = bake_atomic("chassis_vlo") or bake_atomic("chassis_vlo2")
     vloS, vloC, vloPrims = pack_run_merged(track_uv(count(vlo_meshes)), textable)
     wheel_prims = []; wS = 1.0; wC = (0.0, 0.0, 0.0); wrad = 0.0
-    for alias in WHEEL_ALIASES:
-        wa = frame_of.get(alias)
-        if wa is None:
-            continue
+    wa = pick_wheel_node(frame_of)
+    if wa is not None:
         wf = W[wa.frame_index]
         wlocal = [wf[0], wf[1], wf[2],  0, wf[4], wf[5], wf[6],  0,
                   wf[8], wf[9], wf[10], 0, 0, 0, 0, 1]
@@ -1030,7 +1027,6 @@ def bake_plane(dff_name, txd_name, handling, carcols_name, wheel_scale, out_path
             for (x, y, z) in me.positions:
                 wrad = max(wrad, math.sqrt(x*x + y*y + z*z))
         wS, wC, wheel_prims = pack_run_merged(track_uv(count(wmeshes)), textable)
-        break                                   # first alias present wins
 
     if uv_max > UV_LIMIT:
         raise RuntimeError("%s: UV extent %.2f exceeds the s16 GE limit %.1f - retile the "

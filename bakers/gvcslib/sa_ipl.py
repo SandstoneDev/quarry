@@ -31,7 +31,7 @@ import struct
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
-# Binary `bnry` header: magic@0x00, numInst@0x04, offsetInst@0x1c. INST record
+# Binary `bnry` header:,,. INST record
 # = 7 float32 (pos xyz + quat xyzw) then 3 int32: model_id, flagsArea, lod.
 # The middle int32 is NOT an interior id - it is flagsArea = (flags<<8)|areaCode.
 # SA loader CFileLoader::CreateEntityFromInstance (the original loader) reads it

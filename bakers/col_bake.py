@@ -15,7 +15,7 @@ transforms only the handful of instances near the ped. Boxes (lamp posts, walls
 modelled as CBox) are triangulated to 12 faces so they collide too.
 
 world_col.bin (little-endian) ===============================================
-Header @0x00 (0x48 bytes):
+ (0x48 bytes):
  u32 magic 'WCOL' = 0x4C4F4357
  u32 version = 2
  u32 nModels, nInsts, nVerts, nFaces

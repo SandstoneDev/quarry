@@ -4,8 +4,7 @@
 water.dat is the original's text water table: one zone per line, each vertex a
 7-float group (x y z then four flow/wave parameters this port does not use yet),
 followed by a trailing flags int. A line carries 4 vertices for a quad or 3 for a
-triangle. Quad corners come in grid order - (x0,y0) (x1,y0) (x0,y1) (x1,y1) --
-so the two triangles are (0,1,2) and (1,3,2), which keeps their winding the same.
+triangle. Quad corners come in grid order - (x0,y0) (x1,y0) (x0,y1) (x1,y1) - so the two triangles are (0,1,2) and (1,3,2), which keeps their winding the same.
 
 water.bin (little-endian):
  'WATR' u32 nTris, then nTris * 9 f32 (three vertices, x y z each)

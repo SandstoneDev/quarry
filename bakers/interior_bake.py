@@ -3,8 +3,7 @@
 + interior_<N>.col for the PSP EntryExit runtime.
 
 Interior geometry lives in gta_int.img (binary *stream*.ipl placements, DFF/TXD
-in the same archive; defs come from the interior IDEs already listed in gta.dat
--- research/interior_enex_system.md). The map_export pipeline (geom/pack) is
+in the same archive; defs come from the interior IDEs already listed in gta.dat - research/interior_enex_system.md). The map_export pipeline (geom/pack) is
 reused as-is; the single tile is emitted via build_grid_pmaps with a huge tile
 size and renamed. COL comes from the gta_int col libraries via col_bake's
 model_geometry/build_blob.
