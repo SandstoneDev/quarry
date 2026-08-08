@@ -1,5 +1,11 @@
 # Quarry
 
+### Join the community: **[discord.gg/wV8x46ZTDu](https://discord.gg/wV8x46ZTDu)**
+
+Builds, help with setup, bug reports and news all live there.
+
+---
+
 **Quarry** is a Windows tool that builds the data for the
 [Sandstone Engine](https://github.com/SandstoneDev/sandstone-engine) from a PS2
 disc image you already own.
