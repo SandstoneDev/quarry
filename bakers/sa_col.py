@@ -2,7 +2,7 @@
 """sa_col - decode the source game collision (.col) libraries from gta3.img.
 
 Port-side codec (gvcslib stays READ-ONLY). 1:1 with the reverse:
-CFileLoader::LoadCollisionModel{,Ver2,Ver3,Ver4} (the reference notes FileLoader.cpp)
+CFileLoader::LoadCollisionModel{,Ver2,Ver3,Ver4} (the reference sources FileLoader.cpp)
 and the ColHelpers struct layout (ColHelpers.h). COL spec also on
 https://gtamods.com/wiki/Collision_File .
 

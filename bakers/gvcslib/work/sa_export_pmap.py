@@ -127,11 +127,10 @@ def _make_texture(tex: dict) -> psp_scene.Texture:
 
 def _decal_edge_fade(rgba, w, h, margin=0.08):
     """Fade a decal texture's alpha to 0 in the outer `margin` ring so the coplanar
- decal QUAD leaves no hard rectangular edge on the surface it overlays: without
- this the mesh border of the semi-transparent plane is visible in game. Content
- near the centre is untouched; only the outermost ~`margin` fraction of the
- texture ramps the alpha down to 0 at the very edge. Returns new RGBA bytes
- (same length)."""
+ decal QUAD leaves no hard rectangular edge on the surface it overlays (:
+ Content near the centre is untouched;
+ only the outermost ~`margin` fraction of the texture ramps the alpha down to 0 at
+ the very edge. Returns new RGBA bytes (same length)."""
     import numpy as np
     a = np.frombuffer(bytes(rgba), np.uint8).reshape(h, w, 4).astype(np.float32)
     mx = max(1.0, w * margin)
@@ -390,7 +389,6 @@ def build_pmap(root, bbox, *, no_interior=True, cell_size=400.0,
         # dark gate keeps this off glass/foliage/effects -> no pink junk-quad regression.
         # DECIDED BEFORE authoring so the alpha can be EDGE-FADED: a coplanar decal quad
         # whose ink/background reaches the texture border otherwise shows its rectangular
-        # MESH edge on the surface below, which is visible in game.
         alphas = rgba[3::4]
         opaque_frac = (sum(x >= 240 for x in alphas) / len(alphas)) if alphas else 1.0
         # A decal is SPARSE ink over a surface that still has to show through. opaque_frac

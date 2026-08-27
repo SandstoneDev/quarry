@@ -159,6 +159,11 @@ public sealed class MainForm : Form
                     var a = DataAnalyzer.AnalyzeSection(sec, dir, _eta_store);
                     var row = _rows.First(r => r.SectionId == sec.Id);
                     row.SetStatus(a.Status); row.SetEstimate(a.Estimate);
+                    /* Tick only what actually has work. A section already up to date would
+                     * spend its whole estimate re-deriving byte-identical output, and the
+                     * world alone is ~111 min of that. The box stays live, so anyone who
+                     * wants a forced rebuild just ticks it back on. */
+                    if (row.CheckEnabled) row.SetChecked(a.Status != SectionStatus.UpToDate);
                     if (a.Status != SectionStatus.UpToDate) { need++; total += a.Estimate; }
                 }
                 int n = need; var t = total;

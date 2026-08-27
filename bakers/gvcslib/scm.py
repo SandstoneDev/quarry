@@ -1,4 +1,4 @@
-"""SCM script disassembler / assembler for the source console title (PSP).
+"""SCM script disassembler / assembler for the source game: the source console title (PSP).
 
 MAIN.SCM is the compiled mission/game script consumed by the in-engine SCM
 virtual machine. The interpreter (EBOOT FUN_0005e5e8) walks a flat byte stream

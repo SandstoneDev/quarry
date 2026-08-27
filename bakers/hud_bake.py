@@ -2,12 +2,15 @@
 """hud_bake.py - extract HUD sprite assets for the GTASA_PSP port.
 
 The unarmed weapon-icon slot uses the real SA "fist" texture from models/hud.txd
-(64x64 RGBA). Packed into hud.bin for CHud to draw as the weapon icon.
+(64x64 RGBA), and the free-aim CROSSHAIR is `sitem16` out of the same TXD - SA draws
+that ONE 64x64 sprite four times, once per corner (CHud::DrawCrossHairs 0x58E020).
+`siterocket` (32x32) is the rocket-launcher reticle, baked for the launcher aim mode.
 
 hud.bin:
- 'HUD1'
- u32 fistW, fistH (64, 64)
- fistW*fistH RGBA8888 (fist)
+ 'HUD2' ('HUD1' = fist only, still read)
+ u32 fistW, fistH ; fistW*fistH RGBA8888
+ u32 siteW, siteH ; siteW*siteH RGBA8888 (sitem16)
+ u32 rockW, rockH ; rockW*rockH RGBA8888 (siterocket)
 """
 import os
 import struct
@@ -27,16 +30,38 @@ OUT_DIR = sys.argv[1] if len(sys.argv) > 1 else ""
 
 def main():
     d = sa_txd.decode(open(SA_ROOT + "/models/hud.txd", "rb").read())
-    w, h, rgba = d["fist"]
-    fist = np.frombuffer(rgba, np.uint8).reshape(h, w, 4)
+    lower = {k.lower(): k for k in d}
+
+    def grab(name):
+        k = lower.get(name)
+        if k is None:
+            return None
+        w, h, rgba = d[k]
+        return w, h, np.frombuffer(rgba, np.uint8).reshape(h, w, 4)
+
+    fist = grab("fist")
+    if fist is None:
+        sys.exit("hud_bake: hud.txd has no `fist` - refusing to write a HUD without it")
+    site = grab("sitem16")
+    rock = grab("siterocket")
 
     os.makedirs(OUT_DIR, exist_ok=True)
     out = os.path.join(OUT_DIR, "hud.bin")
     with open(out, "wb") as f:
-        f.write(b"HUD1")
-        f.write(struct.pack("<2I", w, h))
-        f.write(fist.tobytes())
-    print("hud.bin: fist %dx%d (%.1f KB) -> %s" % (w, h, os.path.getsize(out)/1e3, out))
+        f.write(b"HUD2")
+        for name, tex in (("fist", fist), ("sitem16", site), ("siterocket", rock)):
+            if tex is None:                       # absent: a 0x0 entry, the HUD keeps its fallback
+                f.write(struct.pack("<2I", 0, 0))
+                print("  ! hud.txd has no %s - written as empty" % name)
+                continue
+            w, h, px = tex
+            f.write(struct.pack("<2I", w, h))
+            f.write(px.tobytes())
+    print("hud.bin: fist %dx%d, sitem16 %s, siterocket %s (%.1f KB) -> %s"
+          % (fist[0], fist[1],
+             "%dx%d" % site[:2] if site else "-",
+             "%dx%d" % rock[:2] if rock else "-",
+             os.path.getsize(out) / 1e3, out))
 
 
 if __name__ == "__main__":

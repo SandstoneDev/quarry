@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""ps2world_pilot: bake a world chunkset straight off the disc.
-
+"""phase 2 PILOT: one world tile straight from the user's PS2 disc extract.
 
 Drives the battle exporter (gvcslib work/sa_export_pmap.py: IPL+IDE+TXD+pack+
 write_scene+build_grid_pmaps) with OUR ps2dff decoder monkey-patched over
@@ -113,6 +112,11 @@ def main():
     # applies the same cap; the PS2 path bypasses geom.py entirely.
     cap_uv_span(sm)
     sa_export_pmap.build_grid_pmaps(sm, st, si, out, 450.0, 400.0)
+    if ps2dff._OVERRUN_MESHES:
+        # a VIF walk that ran past the BinMesh vertex count decoded padding as
+        # geometry; those vertices land hundreds of units away and draw as spikes.
+        print("ps2dff: %d mesh(es) trimmed to their BinMesh vertex count"
+              % ps2dff._OVERRUN_MESHES)
     print("grid export complete ->", out)
     return 0
 

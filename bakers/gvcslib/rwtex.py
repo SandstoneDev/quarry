@@ -1,4 +1,4 @@
-"""RW-PSP texture full codec (the source console title, PSP).
+"""RW-PSP texture full codec (the source game: the source console title, PSP).
 
 This module decodes the *embedded* RW-PSP rasters that the streaming system
 packs inside the world ``<ZONE>.IMG`` files (reached via the ``.LVZ`` texture

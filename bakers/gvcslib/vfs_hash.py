@@ -1,4 +1,4 @@
-"""VFS path-hash codec (the source console title, PSP).
+"""VFS path-hash codec (the source game: the source console title, PSP).
 
 The game's virtual file system (the disc / RUNDATA archive index) addresses
 every packed resource by a 32-bit hash of its canonical path rather than by a

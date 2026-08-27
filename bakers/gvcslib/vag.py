@@ -1,6 +1,6 @@
 """PSP VAG sound banks - the console title ``AUDIO/SETx/SFXn_PSP.RAW`` (Sony 4-bit ADPCM).
 
-Format notes, derived from the retail files:
+derived from the retail files ( RE library/formats/vag-audio.md):
 each ``SFXn_PSP.RAW`` is a flat **bank** of standard Sony ``VAGp`` sub-files laid
 end to end - there is no separate directory file; every sub-file is self-describing.
 

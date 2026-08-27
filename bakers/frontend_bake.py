@@ -2,7 +2,7 @@
 """frontend_bake.py - the source game pause-menu sprites -> data/frontend.bin for the PSP port.
 
 Pulls the real front-end sprites out of the SA TXDs (the same ones CMenuManager loads
-from FrontEndFilenames[] in the original):
+from FrontEndFilenames[]):
  - "arrow" (fronten1.txd, 64x128) - the blue cross/4-arrow SELECTION CURSOR drawn
  next to the highlighted menu item.
  - one menu BACKGROUND photo (fronten2.txd "back2"..., 512x512) - box-downscaled to

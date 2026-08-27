@@ -31,7 +31,7 @@ import sys, os, struct, json
 from collections import Counter, defaultdict
 
 # ---- parameter-type tag -> byte length consumed AFTER the 1-byte tag ----------
-# Values are eScriptParameterType from the analysed SA parser (contiguous 0..0x13)
+# Values are eScriptParameterType from the source SA parser (contiguous 0..0x13)
 # 0x00 END_OF_ARGS | 0x01 int32 | 0x02 gvar | 0x03 lvar | 0x04 int8 | 0x05 int16
 # 0x06 float | 0x07 gArray | 0x08 lArray | 0x09 str8 | 0x0A gStrVar | 0x0B lStrVar
 # 0x0C gStrArray | 0x0D lStrArray | 0x0E pascalStr(len-prefixed) | 0x0F str16

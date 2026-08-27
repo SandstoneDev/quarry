@@ -11,7 +11,7 @@ Two outputs into data/cutscene/:
  with the key resolved against text/american.gxt table INTRO1 using the
  SA GXT key hash (CRC-32-IEEE, no final XOR, uppercased). ~ tokens stripped.
 
-Ground truth: the reference notes CutSceneStreamsPC.h (INTRO1A=703), CutsceneMgr.cpp (TEXT section),
+Ground truth: the reference sources CutSceneStreamsPC.h (INTRO1A=703), CutsceneMgr.cpp (TEXT section),
 Core/KeyGen.h (GetUppercaseKey = CRC-32 0xEDB88320, init 0xFFFFFFFF, no final invert).
 """
 import os, sys, struct, zlib

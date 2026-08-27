@@ -3,7 +3,7 @@
 Port-side codec (gvcslib READ-ONLY). Byte spec: docs 18_data_formats/ifp_format.md
 (decoded from CAnimManager::LoadAnimFile 0x4df270).
 
-ANP3 layout (little-endian) - VERIFIED against CAnimManager::LoadAnimFile in the original (static analysis):
+ANP3 layout (little-endian) - VERIFIED against ():
  "ANP3" | u32 blockSize | char blockName[24] | u32 numAnimations
  per animation: char animName[24] | u32 numSeq | u32 totalKeyframeBytes | u32 flags
  per sequence: char seqName[24] | u32 keyTypeCode | u32 numFrames | s32 boneTag

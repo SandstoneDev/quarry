@@ -1,4 +1,4 @@
-"""Repack / build pipeline for the source console title (PSP) assets.
+"""Repack / build pipeline for the source game: the source console title (PSP) assets.
 
 This module is the *write* side of the codec library: given decoded structures
 (or raw payloads) it rebuilds engine-loadable container files and re-assembles

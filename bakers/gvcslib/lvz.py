@@ -1,4 +1,4 @@
-"""LVZ streaming-directory codec (the source console title, PSP).
+"""LVZ streaming-directory codec (the source game: the source console title, PSP).
 
 A ``<ZONE>.LVZ`` file is a zlib-wrapped the original publisher Leeds relocatable chunk
 (magic ``DLRW``). Once inflated, the consumer root sits at ``payload + 0x20``

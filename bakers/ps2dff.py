@@ -216,6 +216,9 @@ def _decode_weight_word(w):
     return wf, bi
 
 
+_OVERRUN_MESHES = 0        # diag: meshes whose VIF walk ran past the BinMesh count
+
+
 class _MeshStream:
     """Decoded per-mesh vertex stream (with duplicates, strip order)."""
     def __init__(self):
@@ -226,6 +229,16 @@ class _MeshStream:
         self.night = []
         self.bidx = []       # skinned peds only: (b0,b1,b2,b3) bone indices
         self.bw = []         # skinned peds only: (w0,w1,w2,w3) bone weights
+
+    def truncate(self, n):
+        """Cut every parallel array to n entries (BinMesh is the authority)."""
+        del self.pos[n:]
+        del self.adc[n:]
+        del self.uv[n:]
+        del self.day[n:]
+        del self.night[n:]
+        del self.bidx[n:]
+        del self.bw[n:]
 
 
 def _parse_chain(raw, tristrip, pos_scale=POS_SCALE):
@@ -598,6 +611,15 @@ def load_dff(b, pos_scale=POS_SCALE):
             dataSize, _noFix = struct.unpack_from("<II", b, o)
             o += 8
             ms = _parse_chain(b[o:o + dataSize], tristrip, pos_scale)
+            # BinMesh states how many vertices this mesh has; the VIF walk can run
+            # past them into the block's tail and decode padding/command words as
+            # geometry. On shabbyhouse03_lvs mesh 4 that turned 5 real vertices into
+            # 30, six of them at coordinates like (237, 0.3, 237) - drawn as the
+            # spikes over Las Venturas. BinMesh is the authority; trust it.
+            if nidx and len(ms.pos) > nidx:
+                global _OVERRUN_MESHES
+                _OVERRUN_MESHES += 1
+                ms.truncate(nidx)
             o += dataSize
             streams.append((ms, mat))
         _weld_and_triangulate(streams, geo)

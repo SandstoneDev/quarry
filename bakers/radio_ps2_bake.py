@@ -54,19 +54,38 @@ def classify(dur, pack_has_short):
 
 ADP_MAGIC = b"ADP3"
 
-def copy_element(fsrc, off, nbytes_total, dst, rate=0, channels=2, samples=0):
-    """Write one element out as ADP2: a 16-byte header, then each channel whole.
+def copy_element(fsrc, off, nbytes_total, dst, rate=0, channels=2, samples=0,
+                 blk_off=None, blk_size=None):
+    """Write one element out as ADP3: a 16-byte header, then the channels interleaved
+ at the runtime's refill window (see the loop below).
 
- The source stores a channel in 0x10000 slices separated by the other channel's
- slice and 0x1000 of padding (S.channel_bytes walks that). Writing the channels
- FLAT means the runtime reads one straight forward, which both removes the
- interleave as a source of bugs and halves the seeking its card reader does.
+ blk_off/blk_size come from sa_ps2_stream.read_header and say where this element's
+ audio blocks sit inside a period. They are not optional in practice - the default
+ is the two-channel layout a CUTSCENE-shaped element has - because a radio element's
+ audio does NOT start at the top of the period: two 750 Hz sub-streams occupy the
+ first 0x1000 bytes of it. Reading from +0 mixed 0xF80 bytes of that low-rate
+ material into every left-channel chunk, played 32x too fast, once every 4.78 s.
  """
     channels = max(1, channels)
     per_ch = nbytes_total // channels
-    fsrc.seek(off + S.DATA)   # S.DATA, not S.HDR: the frame grid starts four bytes later
-    raw = fsrc.read(per_ch * channels + S.STREAM_PERIOD * 2)
-    chans = [S.channel_bytes(raw, c, per_ch) for c in range(channels)]
+    if blk_off is None or blk_size is None:
+        _sz, _of = S.block_layout([(0, rate or 24000)] * channels)
+        blk_off, blk_size = _of, _sz
+    fsrc.seek(off + S.DATA)                       # S.DATA == S.HDR == 0x1F84, no "+4"
+    # Whole periods only: a block is addressed at its own offset inside the period, so
+    # a partial read would cut the last one. The element itself is stored rounded to
+    # whole periods (IOPAudio.irx.text 0x4C20 divides by 0x21000 and multiplies back),
+    # so this never reaches past it - verified over all 1922 elements.
+    periods = (per_ch + blk_size[0] - 1) // blk_size[0]
+    raw = fsrc.read(periods * S.STREAM_PERIOD)
+    chans = [S.channel_bytes(raw, blk_off[c], blk_size[c], per_ch) for c in range(channels)]
+    short = [c for c in range(channels) if len(chans[c]) < per_ch]
+    if short:
+        # Never write a file whose header promises more than its body holds: the runtime
+        # trusts bytesPerCh to locate every window. Say so loudly instead.
+        print("  WARNING: %s channel(s) %s came back short (%d of %d bytes) - the element "
+              "is unplayable past that point" % (os.path.basename(dst), short,
+                                                 min(len(chans[c]) for c in short), per_ch))
     written = 0
     with open(dst, "wb") as o:
         o.write(ADP_MAGIC + struct.pack("<HHII", channels, rate, per_ch, samples))
@@ -160,7 +179,8 @@ def main():
                     continue
                 mb += copy_element(src, h["offset"], h["bytes_per_ch"] * h["channels"],
                                    os.path.join(amb_dir, "amb_t%d.adp" % tid),
-                                   h["rate"], h["channels"], h["samples"])
+                                   h["rate"], h["channels"], h["samples"],
+                                   h["blk_off"], h["blk_size"])
                 n += 1
             src.close()
             print("  ambience: %d tracks -> %s (%.1f MB)" % (n, amb_dir, mb / 1048576.0))
@@ -204,7 +224,8 @@ def main():
             os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
             with open(h["path"], "rb") as src:
                 copy_element(src, h["offset"], h["bytes_per_ch"] * h["channels"],
-                             out_path, h["rate"], h["channels"], h["samples"])
+                             out_path, h["rate"], h["channels"], h["samples"],
+                             h["blk_off"], h["blk_size"])
             print("  cutscene voice: element %d, %.1f s (wanted %.1f) -> %s"
                   % (tid, d, want_s, os.path.basename(out_path)))
         else:
@@ -252,7 +273,8 @@ def main():
         for i, ((tid, h), dur) in enumerate(zip(heads, durs)):
             n = copy_element(src, h["offset"], h["bytes_per_ch"] * h["channels"],
                              os.path.join(dst_dir, "%03d.adp" % i),
-                             h["rate"], h["channels"], h["samples"])
+                             h["rate"], h["channels"], h["samples"],
+                             h["blk_off"], h["blk_size"])
             total_bytes += n
             recs.append((classify(dur, has_short), h["rate"],
                          h["bytes_per_ch"], h["samples"]))

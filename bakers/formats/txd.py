@@ -27,7 +27,7 @@ _MIPS = 0x8000
 
 _FMT_NIBBLE = {
     0x1: "ARGB1555", 0x2: "RGB565", 0x3: "ARGB4444",
-    0x4: "LUM8", 0x5: "RGBA8888", 0x6: "RGB888", 0xA: "RGB555",  # rwRASTERFORMAT555=0x0A00, 5/5/5 no alpha
+    0x4: "LUM8", 0x5: "RGBA8888", 0x6: "RGB888", 0xA: "RGB555",  # rwRASTERFORMAT555=0x0A00, 5/5/5 no alpha (the platform SDK headers)
 }
 
 
@@ -130,7 +130,7 @@ def _native_ps2(data: bytes, tn: rw.ChunkHeader) -> Texture:
 def _parse_native(buf, so: int) -> Texture:
     # Block A (72 bytes)
     platform_id = struct.unpack_from("<I", buf, so)[0]
-    # platform_id is RwPlatformID: PS2=4, XBOX=5, GAMECUBE=6, PCD3D8=8, PCD3D9=9.
+    # platform_id is RwPlatformID (the platform SDK headers): PS2=4, XBOX=5, GAMECUBE=6, PCD3D8=8, PCD3D9=9.
     # This path decodes the PC D3D8/D3D9 native Block-A/B layout only. PS2/Xbox/GameCube native
     # rasters (swizzled PSMT8/PSMT4 + GS CLUT for PS2) have a different STRUCT tree - decoding them
     # here reads garbage. Reject clearly instead. ✅ SDK-verification.

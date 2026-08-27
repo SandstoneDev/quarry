@@ -1,4 +1,4 @@
-// The conversion pipeline: from a disc image to an engine data/ folder. Steps
+﻿// The conversion pipeline: from a disc image to an engine data/ folder. Steps
 // are grouped into user-facing Sections (the checkboxes in the UI); a "prepare"
 // phase (disc read + plain-file staging) always runs first. phase 2 wires the WORLD
 // map bake (the ps2world chain); audio / vehicles / cutscenes / interiors / HUD
@@ -59,7 +59,7 @@ public static class ConvertPipeline
 
     // A pipeline step. stageId+version drive the incremental manifest: a stage
     // with a stable id whose version and output hashes are unchanged is SKIPPED
-    // on re-convert. Setup steps (ISO read, detect) have stageId= -> always
+    // on re-convert. Setup steps (ISO read, detect) have stageId="" -> always
     // run, never manifest-tracked (they touch no data/ output).
     public readonly record struct Step(string Name, string StageId, int Version,
                                        Func<ConvertContext, bool> Fn);
@@ -71,7 +71,7 @@ public static class ConvertPipeline
                                  bool DefaultOn, bool Available, Step[] Steps);
 
     // Prepare phase - always runs first, before any section. Reads the disc and
-    // stages the small plain files; touches no data/ output (stageId).
+    // stages the small plain files; touches no data/ output (stageId "").
     private static readonly Step[] PrepareSteps =
     {
         new("Open disc image",    "", 0, StepOpen),
@@ -91,6 +91,7 @@ public static class ConvertPipeline
                 new Step("Stage data folder",   "stage-plain", 1, StepStage),
                 new Step("Bake cull-air zones", "cull-air",    1, StepBakeCull),
                 new Step("Write boot config",   "bootcfg",     1, StepWriteBootCfg),
+                new Step("Write default settings", "settings", 1, StepWriteSettings),   // b982: a fresh install boots with logging OFF
             }),
         new("world", "World map (geometry, textures, collision, night, foliage, signs)",
             "The whole world map baked from your disc: geometry, native textures, " +
@@ -98,7 +99,30 @@ public static class ConvertPipeline
             DefaultOn: true, Available: true, Steps: new[]
             {
                 new Step("Extract world inputs", "",      0,   StepExtractWorldInputs),
-                new Step("Bake world map",       "world", 775, StepBakeWorld),   // v774: the decal classifier now requires SPARSE ink, so baked shadows stop rendering as black patches (v771: ps2_uv_tess caps each triangle's UV extent). Bumping forces a re-bake past the incremental manifest
+                new Step("Bake world map",       "world", 780, StepBakeWorld),   // v780: tools/world_store_build.py + world_store_verify.py --ref wired into
+                                                                     // the chain (after pmap_lattice_verify.py, before tile_pack.py) - dedups every
+                                                                     // tile's model/texture blob bytes into one world.idx+world.dat and writes a second,
+                                                                     // STRIPPED copy of the 184 tiles into world/ps2global, beside world/ps2full (measured
+                                                                     // 374.76 -> 171.39 MiB, 54.3% saved). Opt-in only: world/chunkset.txt keeps defaulting
+                                                                     // to "ps2full" - the engine's `wsstore` toggle also defaults off (not in DebugMenu.c's
+                                                                     // DM_SHIPPING; no settings.txt on a fresh install), so a fresh install pointed at
+                                                                     // ps2global with the toggle off would find every region tile refused (pmap_load rc=-3)
+                                                                     // - see StepBakeWorld's own comment on the store block for the full reasoning. A
+                                                                     // build or verify failure only discards ps2global itself, the ~1.5 h ps2full bake
+                                                                     // ships regardless. Bumping forces a re-bake past the incremental manifest so
+                                                                     // existing installs get it.
+                                                                     // v779: pmap_lattice.py + pmap_lattice_verify.py wired into the chain (after
+                                                                     // pmap_lz4.py, before tile_pack.py) - every model's vertices onto ONE shared 1/128
+                                                                     // lattice, replacing 7203 distinct per-model quantisation grids that seamed at every
+                                                                     // tile boundary. Non-fatal: the pass self-checks its own output and writes atomically
+                                                                     // before it is allowed to touch disk (see the chain's own comment for why that makes
+                                                                     // non-fatal safe here). Bumping forces a re-bake past the incremental manifest so
+                                                                     // existing installs get it.
+                                                                     // v778 (b952): tessellation REMOVED from the chain - it corrupted UVs and the night sidecars; see the
+                                                                     // note at the chain. The per-tile archive pack stays.
+                                                                     // v777 (b946): the chain ended with guard-band tessellation (18u) and
+                                                                     // the per-tile archive pack. Bumping forces a re-bake so both reach existing installs.
+                                                                     // v776: ps2dff trims a mesh to its BinMesh vertex count - padding decoded as geometry drew as spikes over Las Venturas. v774: the decal classifier now requires SPARSE ink, so baked shadows stop rendering as black patches (v771: ps2_uv_tess caps each triangle's UV extent). Bumping forces a re-bake past the incremental manifest
                 new Step("Bake water",           "water", 1,   StepBakeWater),   // sea/lake surface from DATA/water.dat
             }),
         new("timecyc", "Timecycle colours",
@@ -119,10 +143,10 @@ public static class ConvertPipeline
             DefaultOn: true, Available: true, Steps: new[]
             {
                 new Step("Extract audio inputs", "",           0, StepExtractAudioInputs),
-                new Step("Bake SFX pool",        "audio-sfx",  3, StepBakeSfx),   // v793: BEATS is staged with the audio inputs now, so the mission jingle finally lands in sfx.bin; bumping forces the re-bake past the incremental manifest
-                new Step("Bake ambience zones",  "audio-amb",  1, StepBakeAmbience),   // the zone table
-                new Step("Bake ambience tracks", "audio-ambx", 3, StepBakeAmbienceTracks), // the audio behind it. v2: the ADPCM frame grid starts 4 bytes after the element header - decoding from the old offset produced noise
-                new Step("Bake radio",           "audio-radio",3, StepBakeRadio),      // slow: ~1.5 GB of stations. v2: same 4-byte stream-data offset fix
+                new Step("Bake SFX pool",        "audio-sfx", 10, StepBakeSfx),   // v10 (b971): bank 59 keeps sounds 1 and 2, the radio retune static bed. radio_static_start() names those ids; without them baked the handles resolve to a silent 2-frame VAG and the retune is inaudible - the fourth time this project has shipped a subsystem whose bank was never baked. The keepset change alone does NOT reach the card: this version is what forces the re-bake past the incremental manifest. v9 (b915): bank 52 keeps sound 10, the flamethrower gas loop (PlayFlameThrowerIdleGasLoop: BankSlotID 5 = bank 52, SoundID 10). v8 (b906): bank 59 keeps the frontend PICKUP pairs 16/17 and 27/28 (CAEFrontendAudioEntity::AddAudioEvent) - weapon pickups were firing a Desert Eagle because the audio EVENT id was read as a weapon-bank sound id. v7 (b904): bank 143 GENRL_WEAPONS is now baked resident, trimmed to the 31 sound ids Fire.c names. It was never in the pack, so EVERY firearm in the port was silent - the same miss as bank 52 below and the radio's "0 stations". v6 (b836): bank 52 GENRL_EXPLOSIONS is now baked resident (sounds 1-4). It was never in the pack, so the port had no explosion sound at all; without this re-bake the new CExplosionAudio finds nothing to play. v793: BEATS is staged with the audio inputs now, so the mission jingle finally lands in sfx.bin; bumping forces the re-bake past the incremental manifest. v4 (b821-824): the pool became the sound ARENA - sfx_index.bin v3 carries the disc's distance curve and event volumes beside the bank records, and sfx.bin is gone. v5 (b827): index v4 adds the per-surface audio class, which is what lets a footstep pick its FEET bank
+                new Step("Bake ambience zones",  "audio-amb",  2, StepBakeAmbience),   // the zone table. v2 (b823-824): ambzones.bin v3 carries the auzo BOXES and SPHERES with their names, which is what lets an outdoor zone be selected by position and a scripted zone be switched on at all
+                new Step("Bake ambience tracks", "audio-ambx", 4, StepBakeAmbienceTracks), // the audio behind it. v2: the ADPCM frame grid starts 4 bytes after the element header - decoding from the old offset produced noise v4 (b830): the PS2 stream layout was wrong in EVERY period - header 0x1F84 not 0x2000+4, and a radio element's audio blocks sit at +0x1000 behind two 750 Hz sub-streams, not at +0 - so every .adp on disc has to be rebuilt
+                new Step("Bake radio",           "audio-radio",5, StepBakeRadio),      // slow: ~1.5 GB of stations. v2: same 4-byte stream-data offset fix. v4: stage the boot elf so stations get their names v5 (b830): the PS2 stream layout was wrong in EVERY period - header 0x1F84 not 0x2000+4, and a radio element's audio blocks sit at +0x1000 behind two 750 Hz sub-streams, not at +0 - so every .adp on disc has to be rebuilt v5 (b830): the PS2 stream layout was wrong in EVERY period - header 0x1F84 not 0x2000+4, and a radio element's audio blocks sit at +0x1000 behind two 750 Hz sub-streams, not at +0 - so every .adp on disc has to be rebuilt
                 new Step("Bake load tunes",      "audio-tune", 1, StepBakeLoadtune),   // non-fatal (only SFX aborts the section)
             }),
         new("vehicles", "Vehicles",
@@ -132,7 +156,7 @@ public static class ConvertPipeline
             DefaultOn: true, Available: true, Steps: new[]
             {
                 new Step("Extract vehicle inputs", "",         0, StepExtractVehicleInputs),
-                new Step("Bake vehicle roster",    "vehicles", 4, StepBakeVehicles),   // car.bin + veh_index + veh/*.bin (per-vehicle non-fatal). v2: vehicle position scale fixed (was 8x). v4: the wheel mesh is picked by rule, so buccanee, intruder, petrotr, combine and raindanc stop baking with no wheels - bump forces a re-bake past the incremental manifest
+                new Step("Bake vehicle roster",    "vehicles", 7, StepBakeVehicles),   // v7 (b837): planes bake as PLN2 - u8 wheelParent[4] carries the DFF parenting, so the wheels ride the gear frames instead of vanishing. Also emits the Hydra's real nozzle frames. v6 (b834): the plane bake emits wheel_rm_dummy/wheel_lm_dummy as nozzle_r/nozzle_l - the Hydra's REAL VTOL nozzle frames (CPlane::PreRender 0x6FED50 nodes 3 and 6). b440 had guessed misc_a/misc_b, which are gear parts; the engine now drives those as gear, so without this re-bake the Hydra has no rotating nozzles. v5: same ps2dff overrun trim (rumpo, petro, marquis, skimmer, vcnmav carried stray vertices). car.bin + veh_index + veh/*.bin (per-vehicle non-fatal). v2: vehicle position scale fixed (was 8x). v4: the wheel mesh is picked by rule, so buccanee, intruder, petrotr, combine and raindanc stop baking with no wheels - bump forces a re-bake past the incremental manifest
                 new Step("Bake effects",           "carenv",   2, StepBakeCarEnv),     // non-fatal. v2: +clouds.bin +fxtex.bin (were never baked)
             }),
         // - coming soon: bakers exist in tools/ but are not wired this pass --
@@ -144,7 +168,7 @@ public static class ConvertPipeline
             {
                 new Step("Extract cutscene inputs", "",          0, StepExtractCutsceneInputs),
                 new Step("Bake cutscene models",    "cutscene",  7, StepBakeCutscene),   // cam + csplay/CJ (models degrade). v3: PS2-native skin position scale fixed (actors were 8x) - bump forces a re-bake past the incremental manifest
-                new Step("Bake cutscene audio",     "cutaudio",  5, StepBakeCutAudio),   // v2: the voice track now comes off the disc as ADPCM. v3: same 4-byte stream-data offset fix. v4: the take is chosen by subtitle timing, not by length (length picked the wrong scene)
+                new Step("Bake cutscene audio",     "cutaudio",  6, StepBakeCutAudio),   // v2: the voice track now comes off the disc as ADPCM. v3: same 4-byte stream-data offset fix. v4: the take is chosen by subtitle timing, not by length (length picked the wrong scene) v6 (b830): the PS2 stream layout was wrong in EVERY period - header 0x1F84 not 0x2000+4, and a radio element's audio blocks sit at +0x1000 behind two 750 Hz sub-streams, not at +0 - so every .adp on disc has to be rebuilt v6 (b830): the PS2 stream layout was wrong in EVERY period - header 0x1F84 not 0x2000+4, and a radio element's audio blocks sit at +0x1000 behind two 750 Hz sub-streams, not at +0 - so every .adp on disc has to be rebuilt
             }),
         new("interiors", "Interiors",
             "Interior world (safehouses, shops, missions) baked from GTA_INT.IMG + the " +
@@ -153,7 +177,7 @@ public static class ConvertPipeline
             {
                 new Step("Extract interior inputs", "",          0, StepExtractInteriorInputs),
                 new Step("Bake enex markers",       "enex",      1, StepBakeEnex),
-                new Step("Bake interiors",          "interiors", 2, StepBakeInteriors),   // v2: the PS2 DFF codec kept only the first VIF batch of a multi-batch stream - interiors lost up to 88% of a room's geometry
+                new Step("Bake interiors",          "interiors", 3, StepBakeInteriors),   // v3 (b975): map_export/pack.py gained the DECAL alpha class on 2026-08-05 (b0ebf52) - floor dust, stains and cracks stopped being classified as opaque - but nothing bumped this step, so the incremental manifest kept serving interiors baked BEFORE it. Measured on the card: interior_CARLS.pmap dated Jul 29 carries 0 decal textures out of 114 (106 opaque, 5 cutout, 3 blend), which is why the dust plane on CJ's floor rendered as a solid black quad while the interior decal pass added for it drew nothing at all. Same trap as audio-sfx v10: the classifier change alone does NOT reach the card. // v2: the PS2 DFF codec kept only the first VIF batch of a multi-batch stream - interiors lost up to 88% of a room's geometry
             }),
         new("hud", "HUD, fonts & menus",
             "HUD sprites, fonts, menu backgrounds, radar and loading screens baked from " +
@@ -161,8 +185,8 @@ public static class ConvertPipeline
             DefaultOn: true, Available: true, Steps: new[]
             {
                 new Step("Extract HUD inputs", "",      0, StepExtractHudInputs),
-                new Step("Bake HUD & fonts",   "hud",   4, StepBakeHud),   // v4: loading arts come from LOADS<region>.txd (the INTRO files were cutscene backdrops)
-                new Step("Bake radar",         "radar", 1, StepBakeRadar),
+                new Step("Bake HUD & fonts",   "hud",   5, StepBakeHud),   // v5: hud.bin HUD2 adds the aim reticles (sitem16, siterocket); v4: loading arts come from LOADS<region>.txd
+                new Step("Bake radar",         "radar", 2, StepBakeRadar),   // v2: RDR6 - tiles at their native 128x128 with a palette each, instead of one atlas squeezed to a third of the resolution; bump forces the re-bake past the incremental manifest
                 new Step("Bake save icon",     "saveicon", 1, StepBakeSaveIcon),   // non-fatal
             }),
         new("peds", "Player & peds (CJ, character, pedestrians)",
@@ -171,8 +195,13 @@ public static class ConvertPipeline
             DefaultOn: true, Available: true, Steps: new[]
             {
                 new Step("Extract ped inputs", "",     0, StepExtractPedInputs),  // PLAYER.IMG + PED.IFP (+ gta3.img)
-                new Step("Bake hero (CJ)",     "hero", 5, StepBakeHero),          // FATAL: no hero = no playable game
+                new Step("Bake hero (CJ)",     "hero", 16, StepBakeHero),         // FATAL: no hero = no playable game (v16 (b909): the MELEE combo blocks - baseball/knife/sword/chainsaw/dildo/flowers and fight_b..e. Two gates had to open: the .ifp names in IFP_BLOCKS, and vehicle_block_clips(), which only emitted groups 88..117 and 11..32 and so dropped the melee range 33..45 even once merged. v15: + the FAT and MUSCULAR locomotion blocks; v14: FINGER tracks no longer dropped + the rocket/chainsaw carry gaits)
                 new Step("Bake player char",   "char", 4, StepBakeChar),          // non-fatal
+                new Step("Bake anim groups",   "anim", 1, StepBakeAnimGroups),    // non-fatal
+                new Step("Bake melee combos", "melee", 1, StepBakeMelee),     // data/melee.dat -> melee.bin: the thirteen fight combos. Non-fatal: without it every melee weapon falls back to bare fists.
+                new Step("Bake weapon table",  "weapon", 1, StepBakeWeapons),   // non-fatal (absent = no weapons)
+                new Step("Bake weapon models", "wmdl", 3, StepBakeWeaponModels), // non-fatal (absent = no gun in hand / no HUD icon). v3: merge the extra atomics AT THEIR FRAME MATRIX (minigun2/sawbarl/petals) + bake the gunflash mesh
+                new Step("Bake pickup icons", "pkup", 1, StepBakePickups),   // non-fatal (absent = weapons still lie in the world, the icon band does not)
                 new Step("Bake pedestrians",   "peds", 5, StepBakePeds),          // non-fatal (ambient peds are PS2-native). v3: same 8x position-scale fix as the cutscene actors
             }),
         new("effects", "World effects (grass, breakables)",
@@ -600,9 +629,23 @@ public static class ConvertPipeline
     private static bool StepBakeRadio(ConvertContext cx)
     {
         if (!StageStationPacks(cx)) { cx.Log("   no station packs on this disc - radio skipped"); return true; }
-        string elf = Path.Combine(cx.TempDir, "game", "SLES_525.41");
+        // The station names live in the boot executable, and nothing else on the pipeline
+        // wants it, so it is staged HERE and named from SYSTEM.CNF rather than hardcoded.
+        // It was never staged at all before, so File.Exists always failed, --elf was never
+        // passed, and every station fell back to showing its two-letter pack code.
         var extra = new List<string> { Path.Combine(cx.OutDir, "audio", "radio") };
-        if (File.Exists(elf)) { extra.Add("--elf"); extra.Add(elf); }
+        string elfId = cx.Disc?.ElfId ?? "";
+        if (elfId.Length > 0)
+        {
+            string elf = Path.Combine(cx.TempDir, "game", elfId);
+            if (!File.Exists(elf))
+            {
+                var e = cx.Iso!.Find(elfId);
+                if (e is not null) cx.Iso.ExtractTo(e, elf);
+            }
+            if (File.Exists(elf)) { extra.Add("--elf"); extra.Add(elf); }
+            else cx.Log($"   {elfId} not on the disc - stations will show their pack codes");
+        }
         return StreamStep(cx, extra.ToArray(), "radio", true);
     }
 
@@ -623,11 +666,11 @@ public static class ConvertPipeline
     // cull.ipl carries the freeway air-resistance zones baked into data/cull_air.bin.
     // NOTE: despite living under DATA/MAPS/, it is a plain loose ISO file on every
     // real PS2 SA disc checked (EU v1.03 + v2.01) - NOT packed inside MODELS/GTA3.IMG.
-    // That archive's own.ipl entries are only the per-zone streaming placements
-    // (countryn_stream0.ipl, vegasw_stream3.ipl,...) plus a handful of mission IPLs
+    // That archive's own .ipl entries are only the per-zone streaming placements
+    // (countryn_stream0.ipl, vegasw_stream3.ipl, ...) plus a handful of mission IPLs
     // (crack.ipl, truthsfarm.ipl, carter.ipl); no "cull" among its 16k+ entries.
     // Staged via PlainFiles like every other always-loaded top-level file (main.scm,
-    // handling.cfg,...), then baked the same way timecyc/zones are.
+    // handling.cfg, ...), then baked the same way timecyc/zones are.
     private static bool StepBakeCull(ConvertContext cx) =>
         BakerStep(cx, "cull_air_bake.py", "data/maps/cull.ipl", Path.Combine("world", "cull_air.bin"));
 
@@ -636,9 +679,9 @@ public static class ConvertPipeline
     // Extract the disc's model + map files into an SA_ROOT tree the ps2world
     // chain can read: MODELS/GTA3.IMG + MODELS/GTA_INT.IMG (skip the GTA3_1.IMG
     // byte-dup) and everything under DATA/ except the huge SCRIPT.IMG. gta3.img
-    // is ~1 GB -> this is the slow, disk-bound part. stageId => always runs
+    // is ~1 GB -> this is the slow, disk-bound part. stageId "" => always runs
     // when the world section runs (it writes into TempDir, not data/); the bake
-    // step's manifest tracks the real.pmap outputs instead.
+    // step's manifest tracks the real .pmap outputs instead.
     private static bool StepExtractWorldInputs(ConvertContext cx)
     {
         string gameRoot = Path.Combine(cx.TempDir, "game");
@@ -676,10 +719,22 @@ public static class ConvertPipeline
         return true;
     }
 
-    // The ps2world bake chain - mirrors tools/ps2world_rebake.ps1 exactly (lz4
-    // LAST, after the night twin, or it corrupts col/lod/night input). Aborts on
-    // any script failure. stageId "world" v716 -> an unchanged re-convert skips
-    // this whole ~1.5 h bake.
+    // The ps2world bake chain. Exact run order, and which steps are FATAL vs
+    // non-fatal, live in the `chain` array below - each entry's own comment
+    // explains why it sits where it does; this comment stays high-level.
+    //
+    // Historical note: tools/ps2world_rebake.ps1 is a standalone dev script for
+    // iterating on the early, load-bearing part of this chain (export through
+    // pmap_lz4.py - col/lod/dyn/road/mflags/night all read the pre-compression v2
+    // header, so lz4 cannot run any earlier than right after them) without a full
+    // Quarry run. It predates tile_pack.py (b946) and the world-lattice pass, so it
+    // is no longer a mirror of the live chain - useful as a faster loop for the
+    // geometry/collision/UV steps, not as documentation of what actually ships.
+    //
+    // stageId "world" -> the version on the Step() declaration below drives the
+    // incremental manifest: bump it whenever this chain's output changes, or an
+    // unchanged re-convert skips this whole ~1.5 h bake and an existing install
+    // never gets the fix.
     private static bool StepBakeWorld(ConvertContext cx)
     {
         s_python ??= PythonRunner.FindPython();
@@ -697,6 +752,11 @@ public static class ConvertPipeline
 
         string worldDir = Path.Combine(cx.OutDir, "world", "ps2full");
         string nightDir = worldDir + "_night";
+        // The deduped alternative world - built and verified further down, only once
+        // everything else below has finished writing worldDir. Not created here (only
+        // world_store_build.py itself, or the failure-cleanup code beside it, owns this
+        // directory's lifecycle) - see the store block's own comment for why.
+        string storeDir = Path.Combine(cx.OutDir, "world", "ps2global");
         Directory.CreateDirectory(worldDir);
 
         // (script, args, fatal) in run order. worldDir/nightDir are the two export trees.
@@ -716,10 +776,80 @@ public static class ConvertPipeline
             ("grass_bake.py",         new[] { worldDir },                                false),
             ("dyn_sidecar_bake.py",   new[] { worldDir },                                false),
             ("road_sidecar_bake.py",  new[] { worldDir },                                false),
-            ("mflags_sidecar_bake.py",new[] { worldDir },                                false),   // b749/b759: SA IDE render flags (TWOSIDED/ADDITIVE/DRAWLAST/NOZWRITE) -> region_*.mflags; MUST precede lz4 (reads the uncompressed.pmap header)
+            ("mflags_sidecar_bake.py",new[] { worldDir },                                false),   // b749/b759: SA IDE render flags (TWOSIDED/ADDITIVE/DRAWLAST/NOZWRITE) -> region_*.mflags; MUST precede lz4 (reads the uncompressed .pmap header)
             ("ps2world_pilot.py",     new[] { saRoot, nightDir, "all", "--night" },      false),
             ("ps2night_sidecar.py",   new[] { nightDir, worldDir },                      false),
             ("pmap_lz4.py",           new[] { "--dir", worldDir },                       true),
+            // World lattice: every model's vertices onto ONE shared 1/128-unit position grid
+            // (tools/pmap_lattice.py), replacing the 7203 distinct per-model quantisation grids
+            // the pilot bake produces - that grid mismatch is the seam down the middle of a
+            // road you can see in daylight. It reads/writes the compressed model blobs directly,
+            // hence AFTER pmap_lz4.py, same slot the tessellation pass below used to run in.
+            //
+            // Non-fatal, and safe to be non-fatal: pmap_lattice.py self-checks every file it
+            // produces (verify_bytes(expect_lattice=True, ref=original), from the SAME verifier
+            // run standalone below) before it is allowed to touch disk, and writes atomically
+            // (temp file + os.replace) - a bad or interrupted tile is left on its OLD per-model
+            // scale, not corrupted. A failure here degrades to "that tile keeps the seam it
+            // already shipped with", never to a broken world.
+            //
+            // The tessellation failure below does NOT apply to this pass - worth spelling out,
+            // since both run in this same slot and one of them already broke the world twice.
+            // Tessellation ADDED vertices, and three things ride on vertex IDENTITY that it did
+            // not carry along: .night (one u16 per vertex), .nightd (runs addressed by vertex
+            // INDEX), and the header's vertex_bytes (what the engine divides to get the vertex
+            // count). The lattice pass only ever REWRITES x/y/z of vertices that already exist --
+            // same count, same order, same indices - so nothing that addresses a vertex by its
+            // position in the pool can desync, because that position never moves. Proving that is
+            // exactly what pmap_lattice_verify.py's count checks (and the self-check above) exist
+            // for, not just assert.
+            //
+            // pmap_lattice_verify.py below runs WITHOUT --ref: there is no pre-pass copy of
+            // worldDir sitting around at bake time to byte-compare against, so at chain time this
+            // only re-runs the structural + lattice checks pmap_lattice.py's own self-check
+            // already ran per file - a second read of the same claim, not the stronger byte-
+            // exact proof a manual `--ref <pre-pass copy>` run gives (that is what validated this
+            // pass against the real 184-tile world before it was wired in here: converted 14126,
+            // refused 0, too_small 3, clean against a pre-lattice reference copy).
+            //
+            // Known acceptance gap: "refused 0" above was measured on a v2.01 disc. v1.03 and
+            // v2.01 ship 3 world .dff models at different sizes (exclbr_hotl02_lvs, vgsespras01,
+            // vgsn_polnb01 - all Las Venturas), so a v1.03 bake is not guaranteed to also read
+            // refused 0. That is fine BY DESIGN: an oversized model refuses on its OWN, keeps its
+            // old scale, and the rest of its tile still converts - but only because
+            // pmap_lattice.py prints a non-zero refused count as a loud banner line, not one
+            // number folded into a four-number summary (see its own main()). A v1.03 bake has
+            // not been run to confirm this (~1.5 h, out of scope for the change that wired this
+            // pass in) - if one ever reads refused > 0, that is the expected, contained gap, not
+            // a new bug.
+            ("pmap_lattice.py",       new[] { worldDir },                                false),
+            ("pmap_lattice_verify.py",new[] { worldDir },                                false),
+            // b946: guard-band tessellation. The GE performs NO X/Y clipping - a primitive with
+            // any vertex outside 0 <= Xs,Ys < 4096 after the viewport transform is DISCARDED, and
+            // the hardware divides only at the near plane (Sony GE Users Manual, section 10,
+            // p58-60: "you must divide the primitives in advance"). With our viewport the largest
+            // surviving triangle is the near plane times seven, so 18u pairs with a near of 2.6.
+            // Runs on the v3 (LZ4) files, hence AFTER pmap_lz4.py. Non-fatal: an untessellated
+            // world still plays, it just flickers geometry at the screen edge when you turn.
+            // b952: TESSELLATION IS OUT OF THE CHAIN. It is correct about geometry - it cuts every
+            // edge to the threshold and the split itself is crack-free - but a .pmap is not only
+            // geometry, and three things ride on the vertex pool that it does not carry along:
+            //   * UV is stored in an int16_t field that the GE reads UNSIGNED (pmap.h), so
+            //     interpolating it as signed corrupts every U above 8.0 tiles -> stretched roads.
+            //   * region_*.night is one u16 per vertex, aligned to the vertex pool, and
+            //     region_*.nightd addresses glow runs by vertex INDEX. Adding vertices shifts both.
+            //   * the header's vertex_bytes is what the engine divides to get the vertex count, and
+            //     it was left at the pre-split value - so the night buffer was accepted and applied
+            //     to the wrong vertices.
+            // On hardware that showed up as stretched textures and broken baked night light, while
+            // the holes it was meant to fix are already handled by the near plane (b945: the largest
+            // surviving triangle is near * (2048/240) * tan(fov/2)). Cost was real too: +13% world
+            // size and tile loads 59 -> 86ms median.
+            // The tool stays in bakers/ and works; putting it back means teaching it the sidecars
+            // and the header, and that belongs in the bake, not in a post-pass.
+            // tile_pack.py is deliberately NOT here anymore (it used to be the last entry in
+            // this array) - see the dedicated block below the loop, after the world store,
+            // for why packing has to move to run AFTER that pass rather than simply last here.
         };
 
         foreach (var (script, args, fatal) in chain)
@@ -740,15 +870,187 @@ public static class ConvertPipeline
             }
         }
 
+        // - world store (tools/world_store_build.py) ---------------------------------------
+        //
+        // WHY HERE, exactly between the loop above and the tile-pack block below:
+        // world_store_build.py reads worldDir's region_*.pmap AND copies every OTHER file it
+        // finds there straight through as a "sidecar" (see its own module docstring's SIDECAR
+        // FILES section) - so it must run only once nothing above is still going to write into
+        // worldDir, which is everything through pmap_lattice_verify.py (pmap_lattice.py is the
+        // last rewrite of the .pmap bytes themselves; the verify pass only reads).
+        //
+        // It must ALSO run BEFORE tile_pack.py: tile_pack does not touch .pmap bytes, but it
+        // DOES add a new region_*.tile file into worldDir, and world_store_build's blanket
+        // sidecar copy has no way to tell that file apart from a real one - pack worldDir first
+        // and ps2global would ship a second, STALE, non-deduped copy of every tile bundled
+        // inside a .tile archive that the engine's shipping default (tilearc=1, DebugMenu.c
+        // DM_SHIPPING) would then open INSTEAD OF the stripped loose .pmap this pass just wrote,
+        // silently defeating the entire store. Confirmed empirically while wiring this in (not
+        // just reasoned about): packing worldDir first and THEN building the store from it does
+        // leak exactly that stray .tile into ps2global's sidecar copy.
+        //
+        // FATAL-NESS, and why it differs from the plain log-and-skip above: ps2global is an
+        // ADDITIONAL, opt-in world (see the chunkset.txt discussion below) - never the
+        // load-bearing one - so neither a build nor a verify failure may abort StepBakeWorld
+        // and throw away the ~1.5 h ps2full bake that already succeeded. But world_store_verify.
+        // py --ref proves every blob in the store resolves BYTE-IDENTICAL to its source tile's
+        // own bytes; a failure there means some blob is NOT that, which is actively dangerous to
+        // ship (wrong geometry/textures that look like a rendering bug, not a load failure that
+        // names itself - the same class of hazard pmap.c's build-stamp mismatch guards against
+        // at load time). So, unlike every other non-fatal entry above, a failure here also
+        // DELETES the partial or unverified world/ps2global, so nothing half-built is ever left
+        // where a later, deliberate chunkset.txt edit could point at it.
+        bool storeOk = false;
+        {
+            string? buildSc = PythonRunner.FindScript("world_store_build.py");
+            if (buildSc is null)
+                cx.Log("   world_store_build.py not found - world store skipped (non-fatal enhancement; ps2full still ships)");
+            else
+            {
+                cx.Ct.ThrowIfCancellationRequested();
+                // Peak disk, briefly: ps2full (~374.76 MiB, measured) plus the store this is
+                // about to write (~171.39 MiB, measured) sit on disk AT THE SAME TIME - world_
+                // store_build.py only ever READS worldDir, it never deletes or shrinks it (it
+                // must stay the load-bearing world regardless of what happens below). Neither
+                // side of this is cleaned up afterwards: ps2full because it always ships, and
+                // ps2global because a failed/discarded store is the ONLY case this step deletes
+                // anything, and a verified one is meant to stay (see ★C/★E below for why it is
+                // not selected by default even so).
+                cx.Log("   building the deduped world store (world/ps2global) alongside world/ps2full - both sit on disk at once, roughly +170 MiB peak for this step");
+                cx.Log($"   -> world_store_build.py {worldDir} --out {storeDir} --force");
+                bool built = PythonRunner.Run(s_python, buildSc,
+                    new[] { worldDir, "--out", storeDir, "--force" }, cx.Log, env, null, cx.Ct, cx.OnPercent);
+                cx.Ct.ThrowIfCancellationRequested();
+                if (!built)
+                    cx.Log("   world_store_build.py FAILED - skipped (non-fatal enhancement; ps2full still ships)");
+                else
+                {
+                    string? verifySc = PythonRunner.FindScript("world_store_verify.py");
+                    if (verifySc is null)
+                        cx.Log("   world_store_verify.py not found - cannot verify the store it just built, discarding it (an unverified store must not ship)");
+                    else
+                    {
+                        cx.Log($"   -> world_store_verify.py {storeDir} --ref {worldDir}");
+                        bool verified = PythonRunner.Run(s_python, verifySc,
+                            new[] { storeDir, "--ref", worldDir }, cx.Log, env, null, cx.Ct, cx.OnPercent);
+                        cx.Ct.ThrowIfCancellationRequested();
+                        if (verified)
+                        {
+                            storeOk = true;
+                            cx.Log("   world store OK - world/ps2global ready (opt-in: point world/chunkset.txt at " +
+                                  "'ps2global' AND enable the engine's `wsstore` debug-menu/settings.txt toggle - " +
+                                  "either alone is inert, see the chunkset.txt comment below)");
+                        }
+                        else
+                            cx.Log("   world_store_verify.py FAILED - the store does not verify, discarding it (ps2full still ships as the default world)");
+                    }
+                }
+            }
+            if (!storeOk && Directory.Exists(storeDir))
+            {
+                try { Directory.Delete(storeDir, recursive: true); }
+                catch (Exception ex) { cx.Log($"   could not remove the failed world/ps2global: {ex.Message}"); }
+            }
+        }
+
+        // - tile pack: LAST, for both worlds ------------------------------------------------
+        //
+        // b946: one archive per tile. A tile was up to 14 separate file opens and an open costs
+        // ~34ms on a Memory Stick - 94% of a tile load was opening, not reading. Packs ps2full
+        // exactly as before this change.
+        //
+        // ★C: also packs ps2global when the store above verified: world.dat only ever addressed the
+        // BLOB bytes (one already-open handle for those - see world_store_build.py's own "why
+        // the per-tile tables stay with the tiles" paragraph); it does nothing for the SIDECAR
+        // files (.col/.lod/.dyn/.night/.nightd/.grass/.road/.mflags/...), and a stripped tile
+        // still carries just as many of those as a full one - so the exact same up-to-14-opens
+        // argument applies to ps2global unchanged, and packing it is cheap: world.idx/world.dat
+        // are never matched by tile_pack's region_<rx>_<ry>.* glob, so they are left alone, one
+        // pair of global files, beside 184 much SMALLER .tile archives (the blob bytes they used
+        // to carry now live only in world.dat). Reasoned from the store's own measured breakdown
+        // rather than measured on the real world here (a full conversion run was out of scope
+        // for this change): idx 0.44 + dat 108.68 + stripped-tiles 5.67 = 114.79 of the 171.39
+        // MiB store total, leaving ~56.6 MiB of sidecars to bundle with the 5.67 MiB of stripped
+        // tiles - close to the ~61 MiB a packed ps2global measures, against ~374 MiB for the
+        // equivalent ps2full pack. Confirmed mechanically (not just arithmetically) on a small
+        // synthetic multi-tile fixture while wiring this in: tile_pack.py packs a world_store_
+        // build.py output cleanly, world.idx/world.dat are left untouched by the glob, and the
+        // packed store came out smaller than the packed full world on that fixture too.
+        var packTargets = new List<(string dir, string label)> { (worldDir, "ps2full") };
+        if (storeOk) packTargets.Add((storeDir, "ps2global"));
+        foreach (var (dir, label) in packTargets)
+        {
+            cx.Ct.ThrowIfCancellationRequested();
+            string? sc = PythonRunner.FindScript("tile_pack.py");
+            if (sc is null) { cx.Log($"   tile_pack.py not found - {label} ships as loose files (non-fatal)"); continue; }
+            cx.Log($"   -> tile_pack.py {dir}");
+            if (!PythonRunner.Run(s_python, sc, new[] { dir }, cx.Log, env, null, cx.Ct, cx.OnPercent))
+            {
+                cx.Ct.ThrowIfCancellationRequested();
+                cx.Log($"   tile_pack.py FAILED on {label} - it ships as loose files (non-fatal)");
+            }
+        }
+
         // chunkset selector for the engine (the pilot already wrote regions.bin).
-        File.WriteAllText(Path.Combine(cx.OutDir, "world", "chunkset.txt"), "ps2full");
-        // night twin is an intermediate: its colours were folded into the.night
+        // Written only when absent, or when it already selects "ps2full" - this line
+        // looks obviously correct in isolation (of course a fresh convert should select
+        // the world it just baked), but it used to run unconditionally, EVERY convert,
+        // even one triggered for something unrelated (HUD, audio, ...). An operator who
+        // had deliberately repointed this file at a rollback directory (e.g.
+        // "ps2full_pre_lattice") would silently lose that selection on the very next
+        // unrelated run - with the world itself ALSO overwritten in place besides
+        // (StepBakeWorld bakes into world/ps2full directly, no snapshot) - so the
+        // documented rollback ("chunkset.txt + a World store toggle") did not actually
+        // roll back to anything once that happened. A fresh convert (no chunkset.txt
+        // yet) still gets "ps2full" as always; an existing, DIFFERENT selection is now
+        // read as a deliberate operator choice and left alone.
+        //
+        // ★E: this still selects "ps2full" even when the store above verified OK. The engine
+        // only ever admits ps2global's stripped (version 5) tiles when its OWN `wsstore` toggle
+        // is on (DebugMenu.c / pmap.c's pmap_load) - and that toggle's shipping default is OFF
+        // (it is not in DM_SHIPPING; a fresh install has no settings.txt to read one from
+        // either). If this write named "ps2global" here, a fresh install would point straight at
+        // a world every one of whose region tiles pmap_load refuses (rc=-3, "toggle off") - an
+        // empty, unplayable map on the FIRST boot, with nothing in this convert's own log to
+        // explain why once the operator is looking at the PSP instead of this console. Defaulting
+        // to ps2full costs nothing: it is exactly as correct and complete as it always was, store
+        // or no store. ps2global stays a real, verified, ready-to-use directory that an operator
+        // opts into on purpose - by editing this file AND the engine's own toggle, the same two
+        // switches the store has always been documented as needing (see the log line above) --
+        // never something this convert flips on their behalf.
+        string chunksetPath = Path.Combine(cx.OutDir, "world", "chunkset.txt");
+        string? kept = WriteChunksetSelector(chunksetPath, "ps2full");
+        if (kept is not null)
+        {
+            cx.Log($"   world/chunkset.txt already selects '{kept}' - keeping it (not overwritten by this convert)");
+        }
+        // night twin is an intermediate: its colours were folded into the .night
         // sidecars beside the day pmaps - drop it so it isn't shipped or tracked.
         try { if (Directory.Exists(nightDir)) Directory.Delete(nightDir, recursive: true); }
         catch { /* best-effort */ }
 
         cx.Log($"   world map baked into {worldDir}");
+        if (storeOk)
+            cx.Log($"   world store also baked into {storeDir} (opt-in - see above; not selected by default)");
         return true;
+    }
+
+    // Decides what StepBakeWorld's chunkset.txt write should actually do, as a pure
+    // function of the file's CURRENT content - pulled out of StepBakeWorld so this
+    // exact decision (keep an operator's selection vs (re)write the default) has a
+    // test that does not need to run a ~40 min world bake to exercise it. Returns
+    // null if it wrote `desired` (file was absent, or already said `desired`); returns
+    // the file's existing content if that content named something ELSE and was left
+    // untouched, so the caller can log what was kept.
+    public static string? WriteChunksetSelector(string chunksetPath, string desired)
+    {
+        string? existing = File.Exists(chunksetPath) ? File.ReadAllText(chunksetPath).Trim() : null;
+        if (existing is null || existing == desired)
+        {
+            File.WriteAllText(chunksetPath, desired);
+            return null;
+        }
+        return existing;
     }
 
     // - HUD section --------------------------------------------------------
@@ -772,7 +1074,7 @@ public static class ConvertPipeline
 
     // Stage the HUD inputs into TempDir/game. Self-contained: also pulls MODELS/GTA3.IMG
     // (the 144 radar tiles + blip sprites) if the world step hasn't already staged it.
-    // stageId => always runs with the section (writes into TempDir, not data/).
+    // stageId "" => always runs with the section (writes into TempDir, not data/).
     private static bool StepExtractHudInputs(ConvertContext cx)
     {
         string gameRoot = Path.Combine(cx.TempDir, "game");
@@ -812,7 +1114,7 @@ public static class ConvertPipeline
     }
 
     // Bake the HUD sprites, the four fonts and the menu/loading textures. StepBakeWorld-
-    // style: SA_ROOT points the patched bakers at the disc extract; each writes its.bin
+    // style: SA_ROOT points the patched bakers at the disc extract; each writes its .bin
     // into cx.OutDir/hud so the manifest snapshot tracks it. Aborts on a baker failure --
     // EXCEPT loadscs: PS2 has no LOADSCS.txd (INTRO*.TXD hold one art each, not the 16
     // named PC arts), so its PC->PS2 loading-art remap is a pending item -> non-fatal.
@@ -900,9 +1202,9 @@ public static class ConvertPipeline
     // Stage the interior inputs into TempDir/game (the same SA_ROOT tree the world +
     // HUD chains use). GTA_INT.IMG carries the interior DFF/TXD/COL + binary stream
     // IPLs; the DATA/ tree carries gta.dat, the interior IDE/IPL maps and DEFAULT.IDE.
-    // gta3.img is also needed - sa_source.open_img resolves a few interior props /
+    // gta3.img is also needed - sa_source.open_img() resolves a few interior props /
     // textures out of the main archive. Self-contained: reuse whatever the world/HUD
-    // steps already staged, pull the rest. stageId => always runs with the section.
+    // steps already staged, pull the rest. stageId "" => always runs with the section.
     private static bool StepExtractInteriorInputs(ConvertContext cx)
     {
         string gameRoot = Path.Combine(cx.TempDir, "game");
@@ -984,7 +1286,7 @@ public static class ConvertPipeline
         return true;
     }
 
-    // Bake every enterable interior -> interiors/interior_<name>.pmap +.col via the
+    // Bake every enterable interior -> interiors/interior_<name>.pmap + .col via the
     // all-interiors driver (like the world chain drives ps2world_pilot). StepBakeWorld-
     // style: SA_ROOT points the PS2-codec-swapped bakers at the disc extract; the driver
     // writes into cx.OutDir/interiors so the manifest snapshot tracks the outputs.
@@ -1032,7 +1334,7 @@ public static class ConvertPipeline
     // use): AUDIO/CONFIG/*.DAT (bank + pak lookups, a few KB) + the baked SFX paks + the
     // ambience map DATA/MAPS/AUDIOZON.IPL + AUDIO/STREAMS/AMBIENCE.PAK (the one ambience
     // stream; the other ~2 GB of STREAMS is radio / speech / cutscene -> deferred to phase 4).
-    // stageId => always runs with the section (writes into TempDir, not data/).
+    // stageId "" => always runs with the section (writes into TempDir, not data/).
     private static bool StepExtractAudioInputs(ConvertContext cx)
     {
         string gameRoot = Path.Combine(cx.TempDir, "game");
@@ -1049,7 +1351,12 @@ public static class ConvertPipeline
                         // straight through as ADPCM. It used to be staged by the RADIO step,
                         // which runs later, so on a disc convert the SFX pass never found it
                         // and the mission end sound was silently missing from sfx.bin.
-                        p == "AUDIO/STREAMS/BEATS.PAK";
+                        p == "AUDIO/STREAMS/BEATS.PAK" ||
+                        // The two surface tables. audio_bake reads them straight off SA_ROOT/data
+                        // (sa_audcurve.surface_classes) to give each footstep its audio class, and
+                        // raises FileNotFoundError without them - same late-staging trap as the
+                        // ELF and BEATS above, so they are pulled here rather than by a later step.
+                        p == "DATA/SURFINFO.DAT" || p == "DATA/SURFAUD.DAT";
             if (!take) continue;
             string dest = Path.Combine(gameRoot, p.Replace('/', Path.DirectorySeparatorChar));
             if (File.Exists(dest)) { ++reuse; continue; }   // e.g. AUDIOZON.IPL already staged by interiors
@@ -1058,11 +1365,29 @@ public static class ConvertPipeline
             cx.Iso.ExtractTo(e, dest);
             ++got;
         }
+        // The PS2 executable, for exactly the reason BEATS is staged above: audio_bake reads
+        // the vehicle audio table out of it and ABORTS without it (ElfNotFound), but the only
+        // other place that stages it is the RADIO step, which runs AFTER the SFX bake. A
+        // convert against a clean temp dir therefore failed the SFX pass every time; runs on
+        // a warm temp only worked because some earlier convert had left the ELF behind.
+        string elfId = cx.Disc?.ElfId ?? "";
+        if (elfId.Length > 0)
+        {
+            string elf = Path.Combine(gameRoot, elfId);
+            if (File.Exists(elf)) ++reuse;
+            else
+            {
+                var ee = cx.Iso.Find(elfId);
+                if (ee is not null) { cx.Iso.ExtractTo(ee, elf); ++got; }
+                else cx.Log($"   {elfId} not on the disc - the SFX bake will abort");
+            }
+        }
+
         cx.Log($"   {got} audio input file(s) staged into {gameRoot} ({reuse} reused)");
         return got > 0 || reuse > 0;
     }
 
-    // Bake the SFX pool -> data/audio/sfx.bin (PRIMARY). PS2 disc bodies are already native
+    // Bake the SFX pool -> the sound arena in data/audio/ (PRIMARY). PS2 disc bodies are already native
     // Sony PS-ADPCM (VAG), so audio_bake passes them straight into the engine's VAG pool --
     // no transcode. QUARRY_SFX_NO_JINGLE keeps the bake on the Python stdlib (the BEATS
     // mission jingle is radio territory, phase 4). This is the one audio step that ABORTS the
@@ -1079,7 +1404,12 @@ public static class ConvertPipeline
         var env = new Dictionary<string, string>
         {
             ["SA_ROOT"]              = saRoot,
-            ["QUARRY_SFX_NO_JINGLE"] = "1",   // BEATS mission jingle -> radio pass (phase 4); keeps sfx stdlib-only
+            // Gates only the PC fallback for the mission jingle, which decodes an OGG
+            // through numpy + soundfile. A PS2 disc never reaches it: the BEATS stream is
+            // already VAG and copies through on the stdlib, so bank 250 DOES ship from a
+            // disc convert - the old "deferred to the radio pass" reading of this flag
+            // has not been true since the PS2 path landed.
+            ["QUARRY_SFX_NO_JINGLE"] = "1",
         };
 
         string? sc = PythonRunner.FindScript("audio_bake.py");
@@ -1088,10 +1418,21 @@ public static class ConvertPipeline
         if (!PythonRunner.Run(s_python, sc, new[] { cx.OutDir }, cx.Log, env, null, cx.Ct, cx.OnPercent))
         { cx.Log("   audio_bake.py FAILED - SFX bake aborted"); return false; }
 
-        string sfx = Path.Combine(cx.OutDir, "audio", "sfx.bin");
-        if (!File.Exists(sfx) || new FileInfo(sfx).Length < 64)
-        { cx.Log("   sfx.bin missing/empty - SFX bake aborted"); return false; }
-        cx.Log($"   SFX pool baked -> {sfx} ({new FileInfo(sfx).Length / 1024} KB)");
+        // The arena's three files, not the v1 pool. audio_bake stopped writing sfx.bin at
+        // b820 and the engine stopped opening it, so checking for it aborted the whole SFX
+        // section on every convert - while passing on a dev folder that still had the
+        // stale file. sfx_banks.bin is checked too: without it the arena comes up with the
+        // resident set only and every streamed engine bank goes quiet.
+        string[] want = { "sfx_index.bin", "sfx_res.bin", "sfx_banks.bin", "vehaud.bin" };
+        long total = 0;
+        foreach (string n in want)
+        {
+            string f = Path.Combine(cx.OutDir, "audio", n);
+            if (!File.Exists(f) || new FileInfo(f).Length < 64)
+            { cx.Log($"   {n} missing/empty - SFX bake aborted"); return false; }
+            total += new FileInfo(f).Length;
+        }
+        cx.Log($"   sound arena baked -> {Path.Combine(cx.OutDir, "audio")} ({total / 1024} KB across {want.Length} files)");
         return true;
     }
 
@@ -1112,6 +1453,14 @@ public static class ConvertPipeline
         cx.Log($"   -> ambience_bake.py {cx.OutDir}");
         if (!PythonRunner.Run(s_python, sc, new[] { cx.OutDir }, cx.Log, env, null, cx.Ct, cx.OnPercent))
             cx.Log("   ambience_bake.py returned non-zero - skipped (ffmpeg/streams optional, phase 4)");
+        // The zone table is the stdlib half and is written even when the track transcode
+        // soft-skips, so its absence means the auzo parse itself failed - worth saying,
+        // because the symptom in-game is no ambience anywhere and no other clue.
+        string amb = Path.Combine(cx.OutDir, "audio", "amb", "ambzones.bin");
+        if (!File.Exists(amb))
+            cx.Log("   ambzones.bin was NOT written - every audio zone will be silent");
+        else
+            cx.Log($"   audio zones baked -> {amb} ({new FileInfo(amb).Length} bytes)");
         return true;   // ambience never aborts the section
     }
 
@@ -1141,16 +1490,16 @@ public static class ConvertPipeline
     // - vehicles section ---------------------------------------------------
 
     // Stage the vehicle inputs into TempDir/game (the SA_ROOT tree the other sections share):
-    // MODELS/GTA3.IMG - the vehicle DFF + per-model TXD source (~1 GB; reused if any
-    // earlier section already pulled it)
-    // MODELS/GENERIC/VEHICLE.TXD - the SHARED vehicle textures (generic/grunge/lights/tyres/
-    // plates/env) every model falls back to; staged by NO other
-    // section, so it is pulled here
-    // MODELS/PARTICLE.TXD - headlight sprite, cloud + corona art (effects step)
-    // MODELS/EFFECTS.TXD - the smoke and fireball particles (effects step)
-    // DATA/CARCOLS.DAT + VEHICLES.IDE + HANDLING.CFG - paint combos, the roster and the handling
-    // columns (tiny; reused if the world/interior step staged DATA)
-    // stageId => always runs with the section (writes into TempDir, not data/).
+    //   MODELS/GTA3.IMG            - the vehicle DFF + per-model TXD source (~1 GB; reused if any
+    //                                 earlier section already pulled it)
+    //   MODELS/GENERIC/VEHICLE.TXD - the SHARED vehicle textures (generic/grunge/lights/tyres/
+    //                                 plates/env) every model falls back to; staged by NO other
+    //                                 section, so it is pulled here
+    //   MODELS/PARTICLE.TXD        - headlight sprite, cloud + corona art (effects step)
+    //   MODELS/EFFECTS.TXD         - the smoke and fireball particles (effects step)
+    //   DATA/CARCOLS.DAT + VEHICLES.IDE + HANDLING.CFG - paint combos, the roster and the handling
+    //                                 columns (tiny; reused if the world/interior step staged DATA)
+    // stageId "" => always runs with the section (writes into TempDir, not data/).
     private static bool StepExtractVehicleInputs(ConvertContext cx)
     {
         string gameRoot = Path.Combine(cx.TempDir, "game");
@@ -1231,7 +1580,7 @@ public static class ConvertPipeline
         { cx.Log("   car_bake.py (car.bin) FAILED - vehicle bake aborted"); return false; }
 
         // 2) the full roster + veh_index.bin (the slow part, ~200 models). Per-vehicle failures are
-        // non-fatal: the driver catches each and indexes only what actually baked.
+        //    non-fatal: the driver catches each and indexes only what actually baked.
         cx.Log($"   -> car_bake.py --all --out {vehOut}   (roster + index; the slow one)");
         if (!PythonRunner.Run(s_python, sc, new[] { "--all", "--out", vehOut }, cx.Log, env, null, cx.Ct, cx.OnPercent))
         { cx.Log("   car_bake.py --all FAILED - vehicle bake aborted"); return false; }
@@ -1267,6 +1616,45 @@ public static class ConvertPipeline
         master_host=134.209.88.211
         master_port=7778
         """;
+
+    // data/settings.txt - the in-game settings the debug menu reads and writes. Like
+    // boot.txt this is written only when ABSENT, so a re-convert never discards what the
+    // player changed.
+    //
+    // Only the keys a fresh install should not inherit from the engine's own shipping table
+    // are listed. The big one is `log`: session logging is a development instrument, it is
+    // not free (it cost 42s of a 340s run once, at 1326 lines a frame), and a player has no
+    // use for it. It stays switchable in WORLD/'Log recording' and via boot.txt log=1.
+    //
+    // `preset 2` = Balance, and it is deliberately LAST: dm_preset_load overwrites whole
+    // groups of rows, so it has to run after the individual keys above or it would undo
+    // them. Balance is what turns on the two adaptive controllers - Auto-DD (draw distance
+    // closed-loop on frame work time) and, since b983, Auto ground LOD (drops the skyline
+    // over 31ms, restores it under 26ms). It is already the engine's built-in default, so
+    // this line does not change behaviour today; it is here so a future change to that
+    // default cannot silently move what a converted install ships with.
+    // groundlod / grass are no longer listed above: both are preset-managed rows, and
+    // Balance sets them anyway.
+    private const string DefaultSettings = """
+        log 0
+        lrauto 0
+        logpin 0
+        nearx10 20
+        nearfloorx10 12
+        tilearc 1
+        preset 2
+        """;
+
+    private static bool StepWriteSettings(ConvertContext cx)
+    {
+        Directory.CreateDirectory(cx.OutDir);
+        string path = Path.Combine(cx.OutDir, "settings.txt");
+        if (File.Exists(path)) { cx.Log($"   settings.txt already present - left as it is ({path})"); return true; }
+        var lines = DefaultSettings.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0);
+        File.WriteAllText(path, string.Join("\n", lines) + "\n");
+        cx.Log($"   wrote default settings (logging OFF) -> {path}");
+        return true;
+    }
 
     private static bool StepWriteBootCfg(ConvertContext cx)
     {
@@ -1328,7 +1716,7 @@ public static class ConvertPipeline
     // byte-identical to PC; only the TXDs are PS2-native, handled by the baker), ANIM/PED.IFP
     // (base locomotion/idle/fight clips, byte-exact ANP3), and GTA3.IMG (the ambient ped
     // models). PED.IFP goes into the game tree so hero_bake's SA_ROOT-relative sa_ifp finds
-    // it. Reuse whatever earlier sections already staged. stageId => always runs.
+    // it. Reuse whatever earlier sections already staged. stageId "" => always runs.
     private static bool StepExtractPedInputs(ConvertContext cx)
     {
         string gameRoot = Path.Combine(cx.TempDir, "game");
@@ -1402,13 +1790,201 @@ public static class ConvertPipeline
         string? sc = PythonRunner.FindScript("hero_bake.py");
         if (sc is null) { cx.Log("   hero_bake.py not found - hero bake aborted"); return false; }
         string dst = Path.Combine(pedsOut, "hero.bin");
-        cx.Log($"   -> hero_bake.py cj {dst}");
-        if (!PythonRunner.Run(s_python, sc, new[] { "cj", dst }, cx.Log, env, null, cx.Ct, cx.OnPercent))
+        // --blocks also writes the streamed per-IFP-block clip files. SA loads animations
+        // a block at a time and ref-counts them; the whole set does not fit resident (the
+        // thirty vehicle groups alone name 128 clips across 21 blocks). Same bake, same
+        // rig, so a streamed clip is byte-identical to a resident one.
+        string blocksOut = Path.Combine(cx.OutDir, "anim", "blocks");
+        Directory.CreateDirectory(blocksOut);
+        cx.Log($"   -> hero_bake.py cj {dst} --blocks {blocksOut}");
+        if (!PythonRunner.Run(s_python, sc, new[] { "cj", dst, "--blocks", blocksOut },
+                              cx.Log, env, null, cx.Ct, cx.OnPercent))
         { cx.Log("   hero_bake.py FAILED - hero bake aborted"); return false; }
 
         if (!File.Exists(dst) || new FileInfo(dst).Length < 1024)
         { cx.Log("   hero.bin missing/empty - hero bake aborted"); return false; }
         cx.Log($"   hero (CJ) baked -> {dst} ({new FileInfo(dst).Length / 1024} KB)");
+        return true;
+    }
+
+    // Bake the SA animation-group tables -> anim/groups.bin. This is what makes boarding a
+    // Rustler different from boarding a Sentinel: handling.cfg gives every vehicle an anim
+    // group, its '^' section defines thirty of those as a pair of AssocGroupIds plus
+    // eighteen selector bits, animgrp.dat adds the walkcycle groups, and vehicles.ide maps
+    // the model ids. The 118 hard-coded groups cannot come off the disc - the PS2 build
+    // assembles that table at runtime into .bss - so they ship with the tool as
+    // bakers/data/sa_anim_groups.json. NON-FATAL: without the file the engine falls back to
+    // its generic CAR_ clips.
+    private static bool StepBakeAnimGroups(ConvertContext cx)
+    {
+        s_python ??= PythonRunner.FindPython();
+        if (s_python is null) { cx.Log("   python not found - anim groups skipped"); return true; }
+
+        string gameRoot = Path.Combine(cx.TempDir, "game");
+        foreach (var p in new[] { "DATA/HANDLING.CFG", "DATA/VEHICLES.IDE", "DATA/ANIMGRP.DAT" })
+        {
+            string dest = Path.Combine(gameRoot, p.Replace('/', Path.DirectorySeparatorChar));
+            if (File.Exists(dest)) continue;
+            var e = cx.Iso!.Find(p);
+            if (e is null) { cx.Log($"   miss {p} - anim groups skipped"); return true; }
+            cx.Iso.ExtractTo(e, dest);
+        }
+
+        string? sc = PythonRunner.FindScript("anim_group_bake.py");
+        if (sc is null) { cx.Log("   anim_group_bake.py not found - anim groups skipped"); return true; }
+
+        string animOut = Path.Combine(cx.OutDir, "anim");
+        Directory.CreateDirectory(animOut);
+        var env = new Dictionary<string, string> { ["SA_ROOT"] = gameRoot };
+        cx.Log($"   -> anim_group_bake.py --out {animOut}");
+        if (!PythonRunner.Run(s_python, sc, new[] { "--out", animOut }, cx.Log, env, null, cx.Ct, cx.OnPercent))
+        { cx.Log("   anim_group_bake.py failed - vehicles will use the generic clips"); return true; }
+
+        string dst = Path.Combine(animOut, "groups.bin");
+        if (!File.Exists(dst) || new FileInfo(dst).Length < 1024)
+        { cx.Log("   groups.bin missing/empty - vehicles will use the generic clips"); return true; }
+        cx.Log($"   anim groups baked -> {dst} ({new FileInfo(dst).Length / 1024} KB)");
+        return true;
+    }
+
+    // Bake DATA/MELEE.DAT -> melee.bin, the thirteen hand-to-hand combos. NON-FATAL:
+    // without it every melee weapon falls back to bare fists, which is what the port did
+    // before this stage existed. The combo a weapon uses is named by CWeaponInfo, so this
+    // table and weapon.bin have to come off the SAME disc.
+    private static bool StepBakeMelee(ConvertContext cx)
+    {
+        s_python ??= PythonRunner.FindPython();
+        if (s_python is null) { cx.Log("   python not found - melee combos skipped"); return true; }
+
+        string gameRoot = Path.Combine(cx.TempDir, "game");
+        string rel = Path.Combine("DATA", "MELEE.DAT");
+        string dest = Path.Combine(gameRoot, rel);
+        if (!File.Exists(dest))
+        {
+            var e = cx.Iso!.Find("DATA/MELEE.DAT");
+            if (e is null) { cx.Log("   miss DATA/MELEE.DAT - melee combos skipped"); return true; }
+            cx.Iso.ExtractTo(e, dest);
+        }
+
+        string? sc = PythonRunner.FindScript("melee_bake.py");
+        if (sc is null) { cx.Log("   melee_bake.py not found - melee combos skipped"); return true; }
+
+        var env = new Dictionary<string, string> { ["SA_ROOT"] = gameRoot };
+        cx.Log($"   -> melee_bake.py --out {cx.OutDir}");
+        if (!PythonRunner.Run(s_python, sc, new[] { "--out", cx.OutDir }, cx.Log, env, null, cx.Ct, cx.OnPercent))
+        { cx.Log("   melee_bake.py failed - melee weapons will swing fists"); return true; }
+
+        string dst = Path.Combine(cx.OutDir, "melee.bin");
+        if (!File.Exists(dst)) { cx.Log("   melee.bin missing - melee weapons will swing fists"); return true; }
+        cx.Log($"   melee combos baked -> {dst} ({new FileInfo(dst).Length} B)");
+        return true;
+    }
+
+    // Bake DATA/WEAPON.DAT -> weapon.bin, the 80-record weapon table. NON-FATAL: without it
+    // every weapon lookup returns nothing and the game stays unarmed, which is what it did
+    // before this stage existed.
+    private static bool StepBakeWeapons(ConvertContext cx)
+    {
+        s_python ??= PythonRunner.FindPython();
+        if (s_python is null) { cx.Log("   python not found - weapon table skipped"); return true; }
+
+        string gameRoot = Path.Combine(cx.TempDir, "game");
+        {
+            const string p = "DATA/WEAPON.DAT";
+            string dest = Path.Combine(gameRoot, p.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(dest))
+            {
+                var e = cx.Iso!.Find(p);
+                if (e is null) { cx.Log("   miss DATA/WEAPON.DAT - weapon table skipped"); return true; }
+                cx.Iso.ExtractTo(e, dest);
+            }
+        }
+
+        string? sc = PythonRunner.FindScript("weapon_bake.py");
+        if (sc is null) { cx.Log("   weapon_bake.py not found - weapon table skipped"); return true; }
+
+        var env = new Dictionary<string, string> { ["SA_ROOT"] = gameRoot };
+        cx.Log($"   -> weapon_bake.py --out {cx.OutDir}");
+        if (!PythonRunner.Run(s_python, sc, new[] { "--out", cx.OutDir }, cx.Log, env, null, cx.Ct, cx.OnPercent))
+        { cx.Log("   weapon_bake.py failed - the game will be unarmed"); return true; }
+
+        string dst = Path.Combine(cx.OutDir, "weapon.bin");
+        if (!File.Exists(dst) || new FileInfo(dst).Length < 4096)
+        { cx.Log("   weapon.bin missing/short - the game will be unarmed"); return true; }
+        cx.Log($"   weapon table baked -> {dst} ({new FileInfo(dst).Length} B)");
+        return true;
+    }
+
+    // Bake the weapon meshes -> weapons/w<type>.bin, one file per weapon so the runtime can
+    // stream them. NON-FATAL: no mesh just means no gun in the hand and no HUD icon.
+    // ★ There is no icon-texture step to add next to this one: models/hud.txd carries a
+    // single weapon texture ("fist") and SA draws every other icon from the 3D model.
+    private static bool StepBakeWeaponModels(ConvertContext cx)
+    {
+        s_python ??= PythonRunner.FindPython();
+        if (s_python is null) { cx.Log("   python not found - weapon models skipped"); return true; }
+
+        string gameRoot = Path.Combine(cx.TempDir, "game");
+        {
+            const string p = "DATA/DEFAULT.IDE";
+            string dest = Path.Combine(gameRoot, p.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(dest))
+            {
+                var e = cx.Iso!.Find(p);
+                if (e is null) { cx.Log("   miss DATA/DEFAULT.IDE - weapon models skipped"); return true; }
+                cx.Iso.ExtractTo(e, dest);
+            }
+        }
+        if (!File.Exists(Path.Combine(gameRoot, "MODELS", "GTA3.IMG")))
+        { cx.Log("   MODELS/GTA3.IMG not staged - weapon models skipped"); return true; }
+
+        string? sc = PythonRunner.FindScript("weapon_model_bake.py");
+        if (sc is null) { cx.Log("   weapon_model_bake.py not found - weapon models skipped"); return true; }
+
+        var env = new Dictionary<string, string> { ["SA_ROOT"] = gameRoot };
+        cx.Log($"   -> weapon_model_bake.py --out {cx.OutDir}");
+        if (!PythonRunner.Run(s_python, sc, new[] { "--out", cx.OutDir }, cx.Log, env, null, cx.Ct, cx.OnPercent))
+        { cx.Log("   weapon_model_bake.py failed - no weapon meshes"); return true; }
+
+        string wdir = Path.Combine(cx.OutDir, "weapons");
+        int n = Directory.Exists(wdir) ? Directory.GetFiles(wdir, "w*.bin").Length : 0;
+        cx.Log($"   weapon models baked -> {wdir} ({n} files)");
+        return true;
+    }
+
+    // The pickup ICON band - dollar, bribe, info, health, armour and the rest. They are
+    // declared in DATA/MAPS/GENERIC/DYNAMIC.IDE, NOT in DEFAULT.IDE, which is why a search
+    // by name in the usual place comes up empty. Weapon pickups reuse the weapon meshes,
+    // so this stage is only the icons. NON-FATAL: without it the weapons still lie in the
+    // world and the icon pickups simply have no model.
+    private static bool StepBakePickups(ConvertContext cx)
+    {
+        s_python ??= PythonRunner.FindPython();
+        if (s_python is null) { cx.Log("   python not found - pickup icons skipped"); return true; }
+
+        string gameRoot = Path.Combine(cx.TempDir, "game");
+        foreach (var p in new[] { "DATA/MAPS/GENERIC/DYNAMIC.IDE", "DATA/MAPS/GENERIC/PROPEXT.IDE" })
+        {
+            string dest = Path.Combine(gameRoot, p.Replace('/', Path.DirectorySeparatorChar));
+            if (File.Exists(dest)) continue;
+            var e = cx.Iso!.Find(p);
+            if (e is null) { cx.Log($"   miss {p} - pickup icons skipped"); return true; }
+            cx.Iso.ExtractTo(e, dest);
+        }
+        if (!File.Exists(Path.Combine(gameRoot, "MODELS", "GTA3.IMG")))
+        { cx.Log("   MODELS/GTA3.IMG not staged - pickup icons skipped"); return true; }
+
+        string? sc = PythonRunner.FindScript("pickup_bake.py");
+        if (sc is null) { cx.Log("   pickup_bake.py not found - pickup icons skipped"); return true; }
+
+        var env = new Dictionary<string, string> { ["SA_ROOT"] = gameRoot };
+        cx.Log($"   -> pickup_bake.py --out {cx.OutDir}");
+        if (!PythonRunner.Run(s_python, sc, new[] { "--out", cx.OutDir }, cx.Log, env, null, cx.Ct, cx.OnPercent))
+        { cx.Log("   pickup_bake.py failed - no pickup icons"); return true; }
+
+        string pdir = Path.Combine(cx.OutDir, "pickups");
+        int n = Directory.Exists(pdir) ? Directory.GetFiles(pdir, "p*.bin").Length : 0;
+        cx.Log($"   pickup icons baked -> {pdir} ({n} files)");
         return true;
     }
 
@@ -1466,15 +2042,15 @@ public static class ConvertPipeline
     // - cutscenes section --------------------------------------------------
 
     // Stage the cutscene inputs into TempDir/game (the SA_ROOT tree the other sections share):
-    // ANIM/CUTS.IMG - intro1a.cut/.dat (camera),.cut TEXT (subtitles),.ifp (ANPK anim)
-    // MODELS/PLAYER.IMG - the csplay/CJ cutscene actor (PLATFORM-NEUTRAL -> bakes on PS2)
-    // MODELS/CUTSCENE.IMG - the cssmoke actor + csbat/csframe/csmomchair props (PS2-NATIVE VIF
-    // geometry, flags 0x01010037 -> deferred to the ambient-ped codec,
-    // task #36; the bakers skip them and write valid containers)
-    // TEXT/AMERICAN.GXT - subtitle strings
-    // AUDIO/CONFIG/*.DAT + AUDIO/STREAMS/CUTSCENE.PAK - the audio attempt (PS2 stream is VAG,
-    // not PC-OGG -> cutaudio soft-skips the.ogg; subtitles still bake)
-    // Self-contained: reuses whatever the peds/audio sections already staged. stageId =>
+    //   ANIM/CUTS.IMG       - intro1a .cut/.dat (camera), .cut TEXT (subtitles), .ifp (ANPK anim)
+    //   MODELS/PLAYER.IMG   - the csplay/CJ cutscene actor (PLATFORM-NEUTRAL -> bakes on PS2)
+    //   MODELS/CUTSCENE.IMG - the cssmoke actor + csbat/csframe/csmomchair props (PS2-NATIVE VIF
+    //                          geometry, flags 0x01010037 -> deferred to the ambient-ped codec,
+    //                          task #36; the bakers skip them and write valid containers)
+    //   TEXT/AMERICAN.GXT   - subtitle strings
+    //   AUDIO/CONFIG/*.DAT + AUDIO/STREAMS/CUTSCENE.PAK - the audio attempt (PS2 stream is VAG,
+    //                          not PC-OGG -> cutaudio soft-skips the .ogg; subtitles still bake)
+    // Self-contained: reuses whatever the peds/audio sections already staged. stageId "" =>
     // always runs with the section (writes into TempDir, not data/).
     private static bool StepExtractCutsceneInputs(ConvertContext cx)
     {
@@ -1519,10 +2095,23 @@ public static class ConvertPipeline
     // Bake the cutscene camera + actor models into <data>/cutscene. StepBakeWorld-style: SA_ROOT
     // points the patched bakers at the disc extract; each takes its explicit output path as
     // argv[1] (so it skips its dev-loop memstick mirror). The camera (codec-free CSV parse)
-    // always produces intro1a_cam.bin; cutscene_bake writes cutscene.bin with the platform-neutral
-    // csplay/CJ actor and SKIPS the PS2-native cssmoke; cutprops writes a valid (empty on PS2)
-    // CPRP - its props are PS2-native too. cam + actors are fatal (they produce real output on a
-    // valid disc and exit 0 after the internal native-skip); props is non-fatal (fully deferred).
+    // always produces intro1a_cam.bin.
+    //
+    // b96x, comment corrected: this block used to say cssmoke was SKIPPED as PS2-native and that
+    // cutprops wrote an EMPTY CPRP on PS2. Both stopped being true and nobody updated the text.
+    // What actually happens now:
+    //   cutscene_bake bakes BOTH actors - ACTORS = [("cssmoke","index"), ("csplay","cjcut")].
+    //   cssmoke is the PS2-native VIF skinned DFF out of cutscene.img, decoded through
+    //   tools/ps2skin (wired in 79f7744; its positions are s16 6.10 and came out 8x too large
+    //   until b0ebf52). csplay is the real cutscene CJ assembled by hero_bake from player.img.
+    //   cutprops_bake writes THREE rigid props - csbat, csframe, csmomchair - each as mesh plus
+    //   the Root track of KRT0 keyframes from intro1a.ifp, so the runtime samples Root at the
+    //   cutscene phase and draws the prop in the same world frame as the skinned actors.
+    // Verified against the runtime loader's own output rather than the source: hardware log
+    // deploy_psp/hw_b959/session_b959_hw.log line 80 reads "CUTSCENE: 2 actor(s) loaded" and
+    // line 82 "CUTPROPS: 3 props loaded".
+    //
+    // cam + actors are fatal (they produce real output on a valid disc); props is non-fatal.
     private static bool StepBakeCutscene(ConvertContext cx)
     {
         s_python ??= PythonRunner.FindPython();
@@ -1560,9 +2149,14 @@ public static class ConvertPipeline
 
     // Bake the cutscene audio + subtitles -> <data>/cutscene. NON-FATAL: cutaudio takes the OUTPUT
     // DIRECTORY as argv[1] and emits intro1a_subs.bin (codec-free, always) plus intro1a.ogg (only
-    // when the stream is a PC XOR-OGG container; the PS2 disc's CUTSCENE stream is VAG, so the
-    // audio soft-skips like ambience_bake - the cutscene plays with subtitles + camera, no voice
-    // track this pass).
+    // when the stream is a PC XOR-OGG container).
+    //
+    // b96x, comment corrected: this used to end "the PS2 disc's CUTSCENE stream is VAG, so the
+    // audio soft-skips - no voice track this pass". That was overtaken by this same step's own
+    // version notes: v2 took the voice off the disc as ADPCM, and v6 (b830) rebuilt every .adp
+    // after finding the PS2 stream layout wrong in every period (header 0x1F84, and a radio
+    // element's blocks at +0x1000 behind two 750 Hz sub-streams). The device carries a real
+    // intro1a.adp - 2,883,600 bytes on the current card - so the cutscene does have voice.
     private static bool StepBakeCutAudio(ConvertContext cx)
     {
         s_python ??= PythonRunner.FindPython();

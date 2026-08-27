@@ -1,6 +1,6 @@
 """PSP GE model geometry - VTYPE 0x000115 static-world meshes (the console title).
 
-Format notes, derived from the retail files:
+derived from EBOOT ( RE library/formats/geometry-ge.md):
 geometry lives inside a zone's `.IMG` as **quantized LOCAL/model-space** model blobs,
 addressed by 0x20-byte 'DLRW' streaming descriptors embedded in the relocated `.LVZ`.
 
@@ -16,7 +16,7 @@ Pipeline
 * The IMG is a headerless 2 KiB-aligned concatenation of raw payloads - read
  ``read_size`` bytes from ``IMG[img_off]`` to get one model blob.
 
-Model blob layout (verified BEACH.IMG)
+Model blob layout (verified BEACH.)
 ----------------------------------------------
 ::
 
@@ -67,7 +67,7 @@ MAGIC_DLRW = 0x57524C44               # 'DLRW' streaming-descriptor magic
 # are seen on many VTYPE-0x115 model-blobs (12-u32 header, mesh_table_off=header[0],
 # section_count=header[1], fp16 scale @+0x40, vertex stream @+0x44):
 # * 0x009500xx - BEACH 0x02/0x03, MAINLA 0x05-0x08, MALL 0x00
-# * 0x001200xx - much of BEACH (low bytes 0x02-0x09); e.g. BEACH.IMG
+# * 0x001200xx - much of BEACH (low bytes 0x02-0x09); e.g. BEACH.
 # is 0x00120005 and decodes to a 43692-vertex stream.
 # WARNING (workflow w31opaze8): the +0x2c marker is NOT a reliable geometry/version gate.
 # Many valid geometry bundles carry a marker OUTSIDE these families, so gating on it

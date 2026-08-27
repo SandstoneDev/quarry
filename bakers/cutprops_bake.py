@@ -83,7 +83,20 @@ def _is_native_dff(raw):
         return False
 
 
-def _bake_mesh_ps2(raw, img, txdname):
+def _geo_texture(geo):
+    """The texture name covering the most triangles of one geometry ("" if untextured)."""
+    counts = {}
+    for (_a, _b, _c, mat) in geo.tris:
+        counts[mat] = counts.get(mat, 0) + 1
+    if not counts:
+        return "", 0
+    dom = max(counts, key=counts.get)
+    if dom < len(geo.materials) and geo.materials[dom].texture:
+        return geo.materials[dom].texture.lower(), len(geo.tris)
+    return "", len(geo.tris)
+
+
+def _bake_mesh_ps2(raw, img, txdname, merge=False, texture=None):
     """PS2-native prop -> the same (verts, idx, texture) the PC path returns.
 
  The props are rigid VIF geometry, which tools/ps2dff already uninstances for the
@@ -96,33 +109,60 @@ def _bake_mesh_ps2(raw, img, txdname):
  The dominant material - the one covering the most triangles - is used for the whole
  mesh; the alternative is dropping half the geometry, which is worse for a prop that
  is on screen for a few seconds.
+
+ `merge` (b880, weapons): an SA weapon DFF is several atomics - `minigun` +
+ `minigun2` + `gunflash`, `sawnoff` + `sawbarl` + `gunflash` - and taking only
+ geometries[0] silently dropped the minigun's barrel cluster (208 tris), the
+ sawn-off's barrels (122) and the flower's petals (100). With `merge` every geometry
+ whose OWN dominant texture matches the chosen one is welded in, so the parts that
+ share the weapon's sheet come back and the muzzle flash (which does not share it)
+ still stays out. `texture` selects a sheet other than the dominant one - that is
+ how the gunflash atomic is baked on its own.
  """
     model = ps2dff.load_dff(bytes(raw))
     if not model.geometries:
         raise SystemExit("no geometry")
-    geo = model.geometries[0]
-    counts = {}
-    for (_a, _b, _c, mat) in geo.tris:
-        counts[mat] = counts.get(mat, 0) + 1
-    if not counts:
-        raise SystemExit("no triangles")
-    dom = max(counts, key=counts.get)
-    texname = ""
-    if dom < len(geo.materials) and geo.materials[dom].texture:
-        texname = geo.materials[dom].texture.lower()
+
+    if merge or texture is not None:
+        totals = {}
+        for g in model.geometries:
+            nm, n = _geo_texture(g)
+            totals[nm] = totals.get(nm, 0) + n
+        texname = texture if texture is not None else max(totals, key=totals.get)
+        geos = [g for g in model.geometries if _geo_texture(g)[0] == texname]
+        if not geos:
+            raise SystemExit("no geometry uses %r" % texname)
+    else:
+        geos = [model.geometries[0]]
+        texname = _geo_texture(geos[0])[0]
 
     verts, vmap, idx = [], {}, []
-    for (a, b, c, _mat) in geo.tris:
-        for vi_src in (a, b, c):
-            pos = geo.verts[vi_src]
-            uv = geo.uvs[vi_src] if vi_src < len(geo.uvs) else (0.0, 0.0)
-            key = (round(pos[0], 5), round(pos[1], 5), round(pos[2], 5),
-                   round(uv[0], 5), round(uv[1], 5))
-            vi = vmap.get(key)
-            if vi is None:
-                vi = len(verts); vmap[key] = vi
-                verts.append((uv[0], uv[1], 0xFFFFFFFF, pos[0], pos[1], pos[2]))
-            idx.append(vi)
+    for geo in geos:
+        # ★ THE FRAME MATRIX IS PART OF THE GEOMETRY. Each atomic sits at its own frame,
+        # and only the root one is at the origin: the minigun's barrel cluster is
+        # (0.829, -0.001, 0.226) and about 30 deg over, the sawn-off's barrels are
+        # (0.313, 0.02, 0.089) and flipped 180. Welding a second atomic in WITHOUT its
+        # local-to-model matrix drops it at the origin in the wrong orientation, which is
+        # exactly what b880 shipped (the minigun pointing off to one side, the sawn-off a
+        # straight stick). RW composes row-vector: p' = p. rot + pos, so does _pt_mul.
+        ltm = getattr(geo, "frame_ltm", None)
+        for (a, b, c, _mat) in geo.tris:
+            for vi_src in (a, b, c):
+                pos = geo.verts[vi_src]
+                if ltm is not None:
+                    rot, tr = ltm
+                    pos = tuple(pos[0] * rot[0 + k] + pos[1] * rot[3 + k]
+                                + pos[2] * rot[6 + k] + tr[k] for k in range(3))
+                uv = geo.uvs[vi_src] if vi_src < len(geo.uvs) else (0.0, 0.0)
+                key = (round(pos[0], 5), round(pos[1], 5), round(pos[2], 5),
+                       round(uv[0], 5), round(uv[1], 5))
+                vi = vmap.get(key)
+                if vi is None:
+                    vi = len(verts); vmap[key] = vi
+                    verts.append((uv[0], uv[1], 0xFFFFFFFF, pos[0], pos[1], pos[2]))
+                idx.append(vi)
+    if not idx:
+        raise SystemExit("no triangles")
 
     txd = {k.lower(): v for k, v in _decode_txd(img.extract(txdname + ".txd")).items()}
     entry = txd.get(texname) or next(iter(txd.values()))
@@ -131,10 +171,12 @@ def _bake_mesh_ps2(raw, img, txdname):
     return verts, idx, t
 
 
-def bake_mesh(img, dffname, txdname):
+def bake_mesh(img, dffname, txdname, merge=False, texture=None):
     raw = img.extract(dffname + ".dff")
     if _is_native_dff(raw):
-        return _bake_mesh_ps2(raw, img, txdname)
+        return _bake_mesh_ps2(raw, img, txdname, merge=merge, texture=texture)
+    if merge or texture is not None:
+        raise SystemExit("bake_mesh: merge/texture selection is PS2-native only")
     if parse_dff is None or geom is None:
         raise SystemExit("neutral DFF parser unavailable in this tree")
     dff = parse_dff(raw)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """dynobj_bake - bake SA object.dat (dynamic/breakable props) for the PSP port.
 
-Parses DATA/object.dat exactly like CObjectData::Initialise (static analysis the routine,
+Parses DATA/object.dat exactly like CObjectData::Initialise ( sub_5D1A90,
 research/object_damage_system.md §1.2, BINARY behaviour incl. the default-row
 slot mapping and the -500 FX sentinel), resolves model names to IDE ids, pulls
 a collision capsule (r, h) per model from its ColModel bbox, and writes:

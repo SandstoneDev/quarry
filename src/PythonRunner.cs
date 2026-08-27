@@ -3,7 +3,7 @@
 // phase 4: the release bundle (built by tools/quarry/build_bundle.ps1) ships an
 // embedded CPython at python/python.exe beside Quarry.exe; FindPython prefers it
 // so the shipped tool runs with ZERO installed dependencies. Its python314._pth
-// (stdlib +. + Lib\site-packages +..\bakers, and deliberately NO `import site`)
+// (stdlib + . + Lib\site-packages + ..\bakers, and deliberately NO `import site`)
 // makes the interpreter resolve the bundled numpy/Pillow/lz4 and the vendored
 // gvcslib/formats/core WITHOUT any PYTHONPATH or -s flag, and stays isolated from
 // the user's %APPDATA% site-packages.

@@ -2,13 +2,13 @@
 """radio_bake.py - extract the source game radio MUSIC tracks into per-track OGGs + a manifest
 for the PSP port's Radio.c streaming player.
 
-Ground truth (all from the retail PC game + the reference notes):
+Ground truth (all from the retail PC game + the reference sources):
  * XOR key + position-keyed cipher -> CAEStreamTransformer (key mod-16 by byte position)
  * AUDIO/CONFIG/STRMPAKS.DAT (16-byte names) -> packId -> archive filename
  * AUDIO/CONFIG/TRAKLKUP.DAT (12-byte records) -> trackId -> {packId, offset, size}
  * each track on disk = [8068-byte tTrackInfo header][encrypted OGG payload of `size`]
  * gRadioMusicTracks (RadioStreamsPC.h) -> which track IDs are a station's music
- * VehicleAudioSettings (the reference notes) -> per-model default station
+ * VehicleAudioSettings (the reference sources) -> per-model default station
 
 v1 = MUSIC ONLY (no DJ intro/outro/advert/ident). Each station's music tracks are
 written as plain (decrypted) OGGs; the engine streams them with stb_vorbis file mode.

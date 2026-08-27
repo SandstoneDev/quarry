@@ -1,4 +1,4 @@
-"""Decode an LVZ-resident RW-PSP raster to RGBA8888 pixels (the source console title, PSP).
+"""Decode an LVZ-resident RW-PSP raster to RGBA8888 pixels (the source game: the source console title, PSP).
 
 A draw-record *material id* (see :mod:`gvcslib.submesh`) is a SLOT into
 ``lvz.decode(<zone>.lvz).all_records``. That record's ``desc_ptr`` is a

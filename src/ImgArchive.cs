@@ -1,7 +1,7 @@
 // IMG archive (VER2, the format all this game generation's archives use):
-// header: "VER2" magic, u32 entry count
-// entry[]: u32 offset (2048-byte sectors), u16 streamingSize (sectors),
-// u16 sizeInArchive (0 on retail), char name[24] (NUL-padded)
+//   header:  "VER2" magic, u32 entry count
+//   entry[]: u32 offset (2048-byte sectors), u16 streamingSize (sectors),
+//            u16 sizeInArchive (0 on retail), char name[24] (NUL-padded)
 // The parser reads from any Stream (a SubStream over the ISO works - no need
 // to extract a 900MB archive before walking it).
 namespace Quarry;

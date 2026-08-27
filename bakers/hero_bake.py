@@ -24,6 +24,7 @@ hero.bin layout (little-endian):
  (dequant: quat /4096, trans /1024, time /60s)
 """
 import math
+import json
 import os
 import struct
 import sys
@@ -64,8 +65,19 @@ def _decode_txd(raw):
 # First 4 = locomotion (idle/walk/run/sprint), index-locked for the SkinAnim
 # speed cross-fade. Appended >=4 are non-looping action clips (jump FSM), looked
 # up by name in the runtime (CSkelAnim_FindClip).
+# ★ CJ has his OWN locomotion group. SA points the player at ANIM_GROUP_PLAYER (54),
+# whose six entries are walk_player / run_player / SPRINT_civi / IDLE_STANCE / roadcross
+# / walk_start - NOT the generic ped gait in group 0. walk_start is authored to hand
+# over to walk_player, so baking WALK_civi instead put a pose discontinuity at the end
+# of every start-to-walk transition. The civi pair stays baked as the fallback for an
+# old bin and for ambient peds. (Group table: tools/data/sa_anim_groups.json, id 54.)
 CLIPS = ["IDLE_stance", "WALK_civi", "run_civi", "sprint_civi",
-         "JUMP_launch", "JUMP_glide", "JUMP_land",
+         "walk_player", "run_player",
+         # b854 jump port: JUMP_launch_R is the MIRRORED wind-up. SA picks between the two
+         # by which foot is forward (CTaskSimpleJump::StartLaunchAnim: the locomotion clip's
+         # phase + 0.367, >= 0.5 takes the _R variant), so with only one baked every jump
+         # pushed off the same leg. jump_system.md section 3.
+         "JUMP_launch", "JUMP_launch_R", "JUMP_glide", "JUMP_land",
          "Turn_L", "Turn_R",
          "CAR_getin_LHS", "CAR_getout_LHS", "CAR_sit",   # driver enter/exit/seated
          "CAR_close_LHS",                                 # b309: shut the door from OUTSIDE (exit close gesture)
@@ -79,14 +91,29 @@ CLIPS = ["IDLE_stance", "WALK_civi", "run_civi", "sprint_civi",
          "FightSh_Left", "FightSh_Right",
          # b438: SA plane boarding (anim.img rustler.ifp - the "rustler" anim group:
          # rustler/cropdust/stunt/hydra canopy climb; runtime MAX_CLIP raised to 40)
-         "Plane_open", "Plane_getin", "Plane_close", "Plane_getout",
          # b443: the SA fall channel (ped.ifp). glide = held drop pose (CTaskSimpleInAir
          # fall-glide entry), fall = the flail LOOP once the drop is deep (vz < -0.1 SA
          # + ground > 4u below, 0x680600), land = on-feet touch-down, collapse = the
          # crumple landing after a flailed fall (CTaskComplexInAirAndLand 0x67CCB0).
-         # The hard slam (minVz < -0.4 SA) re-uses CAR_rollout_LHS + getup, no new clip.
-         # 39/40 of the runtime MAX_CLIP now used.
-         "FALL_glide", "FALL_fall", "FALL_land", "FALL_collapse",
+         # b854: the hard slam is SA's KO_skid_back + 700 ms down time + getup
+         # (CTaskComplexInAirAndLand ★PS2 sub_4C4430 builds CTaskSimpleFall(26, 0, 700)).
+         # It used to borrow CAR_rollout_LHS, which is why a long fall read as bailing
+         # out of a car rather than hitting the ground.
+         "FALL_glide", "FALL_fall", "FALL_land", "FALL_collapse", "KO_skid_back",
+         # b859 jump reserves (CTaskSimpleJump::CheckIfJumpBlocked, PC 0x67D590):
+         # CLIMB_jump is the hug-the-wall take-off - Launch zeroes the horizontal speed and
+         # plays this instead of the glide, and CTaskSimpleInAir cancels 35% of gravity while
+         # it runs so the jump hangs against the wall. HIT_wall (anim id 38) is what SA plays
+         # when the ceiling is too low for the jump at all - the whole task becomes
+         # CTaskSimpleHitHead and the ped never leaves the ground.
+         # b861: the WHOLE climb set. b859 baked only the pose and the ledge grab then had
+         # nothing to climb WITH (runtime reported idle/pull/stand/finish/jumpB all -1).
+         # CTaskSimpleClimb stages: jump = the reach, idle = hanging, Pull = pull up to the
+         # edge, Stand = stand up on it, Stand_finish = settle, jump_B = vault over.
+         "CLIMB_jump", "CLIMB_idle", "CLIMB_Pull", "CLIMB_Stand",
+         # b865: CLIMB_jump2fall closes the VAULT - the ped goes over a fence he cannot
+         # stand on and drops the far side, instead of balancing on the crest.
+         "CLIMB_Stand_finish", "CLIMB_jump_B", "CLIMB_jump2fall", "HIT_wall",
          # fat-gait locomotion (SA ANIM_GROUP_FAT): the runtime swaps these in for idle/walk/run
          # when the Fatness slider is high (waddle). Found by NAME at load. (ped.ifp)
          "Idlestance_fat", "WALK_fat", "run_fat",
@@ -95,7 +122,117 @@ CLIPS = ["IDLE_stance", "WALK_civi", "run_civi", "sprint_civi",
          # scratch / check watch / stretch). The runtime (PlayerPed.c) resolves each by name via
          # CSkelAnim_FindClip and picks one at random after a few idle seconds; a name ped.ifp
          # lacks is simply skipped at bake (harmless). 42 -> 47 clips; runtime MAX_CLIP is 48.
-         "IDLE_HBHB", "XPRESSscratch", "IDLE_chat", "IDLE_tired", "Idle_Gang1"]
+         "IDLE_HBHB", "XPRESSscratch", "IDLE_chat", "IDLE_tired", "Idle_Gang1",
+         # b853: SA covers idle->walk with an authored clip instead of a cross-fade.
+         "walk_start",
+         # b853: SA VEHICLE ANIM GROUPS. handling.cfg gives every vehicle an anim group,
+         # the group names the clip, and the clip lives in that group's IFP block - see
+         # section 6. The runtime resolves
+         # these by name through data/anim/groups.bin, so a name missing here just falls
+         # back to the generic CAR_ set for that vehicle.
+         #
+         # This is a CURATED SUBSET, not the whole thing. The 30 vehicle groups name 128
+         # distinct entry clips across 21 IFP blocks (~500 KB baked), which one resident
+         # hero.bin cannot carry - SA streams them per block with a ref count and we
+         # will have to as well (audit finding B). What is here covers the classes that
+         # visibly differ: canopy plane, business jet, cargo plane, low car, truck, and
+         # the two bike families.
+         "CAR_getinL_LHS", "CAR_getinL_RHS",          # low car (lowcaramims)
+         "CAR_getoutL_LHS", "CAR_closedoorL_LHS",
+         # ★ THE PLAYER IDLE FIDGETS, block `playidles` = SA ANIM_GROUP_PLAYIDLES (49).
+         # These four, and only these four, are what CPlayerPed plays when CJ is left
+         # standing: CTaskSimplePlayerOnFoot::PlayIdleAnimations picks one at random
+         # (never the same twice running) after ten seconds of an untouched pad, then
+         # every twenty. Earlier attempts here used idle_hbhb / XPRESSscratch /
+         # Idle_Gang1, which are group-0 idle STANCES and a different mechanism.
+         "stretch", "time", "shldr", "strleg",
+         # ★ IN-VEHICLE POSES, SA's CRideAnims table (PC 0x8D3514 / PS2 0x5F9160): ten
+         # rows of {idle, left, right, back}, picked by vehicle class, driving skill and
+         # speed. The seated clip is a plain NON-partial association (flags 0x0004) and
+         # the steering clips layer over it as partials (0x1014 = SECONDARY_TASK_ANIM |
+         # PARTIAL | BLEND_AUTO_REMOVE), weighted clamp(steer / 0.61, 0, 1).
+         # Baked here: Std, StdSlow, Low, Truck, and the Kart/passenger seats. The Bad
+         # and Pro rows need the driving-skill stat and the Boat row needs a boat rider,
+         # so they wait - a missing row falls back to Std.
+         "CAR_Lsit", "CAR_sitp",                      # low-car driver, passenger
+         "Drive_truck", "Kart_drive",                 # truck, kart seats
+         "DRIVE_L", "Drive_R",                        # standard steering
+         "Drive_L_slow", "Drive_R_slow",              #..under 0.4 speed
+         "Drive_LO_l", "Drive_LO_R",                  # low car
+         "Drive_truck_L", "Drive_truck_R",            # truck
+         "CAR_LB", "Drive_truck_back",                # look behind / reversing
+         # ★ b872 WEAPONS - the armed STANCE and locomotion. These are group 0 (block
+         # `ped`), i.e. RESIDENT, which is why they belong here and the per-weapon fire
+         # and reload clips do not: those live in one IFP block per weapon (colt45,
+         # python, uzi, rifle, shotgun, buddy, silenced, grenade, flame, rocket,
+         # spraycan, goggles) and are streamed, exactly like the vehicle boarding sets.
+         # section 7.
+         "Gun_stand", "Gun_2_Idle", "idle_armed",
+         "GunMove_FWD", "GunMove_BWD", "GunMove_L", "GunMove_R",
+         "WEAPON_crouch", "GunCrouchFwd", "GunCrouchBwd",
+         # the partial gunshot flinches, picked by CPed::GetLocalDirection 0..3
+         # (front / left / back / right) - CWeapon::DoBulletImpact plays one of these
+         # on every ped it hits that survives.
+         "SHOT_partial", "SHOT_leftP", "Shot_partial_B", "SHOT_rightP",
+         # ★ b874 THE ARMED GAIT. This is the bit that makes CJ actually HOLD the gun
+         # rather than balance it on an open palm: SA does not pose the hand, it swaps the
+         # player's whole locomotion group. ANIM_GROUP_PLAYER2ARMED (60) is
+         # walk_armed / run_armed / idle_armed / walk_start_armed, and
+         # CPlayerPed::ReApplyMoveAnims (PC 0x609650) re-blends WALK/RUN/SPRINT/IDLE/
+         # WALK_START out of whichever group the weapon selected, carrying the blend
+         # amounts across so the swap is invisible. Group 60's SPRINT slot is run_armed.
+         # All of it is block `ped`, i.e. resident - no streaming.
+         "walk_armed", "run_armed", "walk_start_armed",
+         # the other two carry groups SA ships: ANIM_GROUP_PLAYERROCKET (57) for the rocket
+         # launcher on the shoulder and ANIM_GROUP_PLAYERCSAW (66) for the chainsaw. Both
+         # are block `ped`, i.e. resident, and both are what a weapon selects through
+         # CPlayerPed::ReApplyMoveAnims - without them SetLocoSet refuses and the ped
+         "idle_rocket", "walk_rocket", "run_rocket", "walk_start_rocket",
+         "IDLE_csaw", "walk_csaw", "run_csaw", "walk_start_csaw"]
+# ⚠ The seat and steering clips above all live in block `ped` (group 0), which is the
+# resident block, so they stay in hero.bin. The BOARDING clips do not: every one of them
+# belongs to a vehicle-specific block and is streamed, so the names below were removed
+# from CLIPS when block streaming landed - do not put them back.
+# Plane_open/getin/close/getout (rustler), SHAMAL_*, NEVADA_*,
+# BIKEs_jumponL/R, BIKEs_getoffLHS/RHS, bmx_jumponL, bmx_getoffLHS,
+# TRUCK_open/getin/closedoor/getout_LHS, CAR_getinL_*/getoutL_*/closedoorL_* (block ped
+# - those DO stay resident, they are the low-car set of group 89).
+
+# IFP blocks merged on top of PED.IFP. On a PS2 disc these live in models/gta3.img
+# (148.ifp entries); on a PC install in anim/anim.img. Both are searched.
+# Every block the thirty vehicle anim groups name, plus playidles. All of these except
+# `ped` are written out as separate streamed files (--blocks) rather than baked into
+# hero.bin - see vehicle_block_clips and the note at the emission site.
+IFP_BLOCKS = ("bikes.ifp", "bikev.ifp", "bikeh.ifp", "biked.ifp", "wayfarer.ifp",
+              "bmx.ifp", "mtb.ifp", "choppa.ifp", "quad.ifp",
+              "rustler.ifp", "shamal.ifp", "nevada.ifp",
+              "truck.ifp", "van.ifp", "coach.ifp", "bus.ifp", "dozer.ifp",
+              "kart.ifp", "vortex.ifp", "tank.ifp", "bf_injection.ifp",
+              "playidles.ifp",
+              # b872: the weapon sets. Each holds the four clips one anim group names
+              # (fire / crouchfire / reload / crouchreload), so a gun costs at most four
+              # streamed clip slots. The melee weapon blocks come with the melee combo
+              # table, not with the guns.
+              "colt45.ifp", "python.ifp", "silenced.ifp", "shotgun.ifp", "buddy.ifp",
+              "uzi.ifp", "rifle.ifp", "grenade.ifp", "flame.ifp", "rocket.ifp",
+              "spraycan.ifp", "goggles.ifp",
+              # b909: THE MELEE COMBO BLOCKS, which the note above kept promising. Every
+              # ANIMGROUP named by data/melee.dat lives in one of these: bbbat_1/gclub_1
+              # -> baseball, knife_1 -> knife, sword_1 -> sword, csaw_1 -> chainsaw,
+              # dildo_1 -> dildo, flowers_1 -> flowers, and melee_2/3/4 + kick_std ->
+              # fight_b/c/d/e (melee_1 and pistlwhp are already in the resident `ped`
+              # block). Without them every armed melee weapon silently falls back to bare
+              # fists - the combo table would resolve and find no clips behind it, which
+              # is the same shape of miss as bank 143.
+              "baseball.ifp", "knife.ifp", "sword.ifp", "chainsaw.ifp",
+              "dildo.ifp", "flowers.ifp",
+              "fight_b.ifp", "fight_c.ifp", "fight_d.ifp", "fight_e.ifp",
+              # b883: CJ's BODY TYPE. SA does not morph the gait - it swaps the whole
+              # locomotion group: PLAYER(54)/FAT(55)/MUSCULAR(56) and, per weapon family,
+              # ROCKET 57/58/59, 2ARMED 60/61/62, BBBAT 63/64/65, CSAW 66/67/68. The base
+              # of each triple lives in the resident `ped` block; the +1 and +2 variants
+              # live here. fat.ifp is 153 KB, muscular.ifp 118 KB.
+              "fat.ifp", "muscular.ifp")
 BINMESH_PLG = 0x050E
 RPGEOMETRY_PRELIT = 0x08
 RPGEOMETRY_TEXTURED = 0x04
@@ -463,7 +600,126 @@ def smooth_skin_weights(GV, radius=0.05, strength=0.7, lo=0):
     GV[:] = out
 
 
-def bake_model(arg="fam1", clips=None, emit_clst=True, cut=None):
+# ---- which clips each IFP block owes the vehicle anim groups ----------------------
+# Read from the same table the runtime uses (tools/data/sa_anim_groups.json, baked into
+# data/anim/groups.bin by anim_group_bake.py), so a clip the group table names is a clip
+# the block file carries - no second list to drift.
+VEH_ENTRY_ANIMS = (351, 355, 356, 359, 360, 363, 367, 368, 371, 373, 374, 380, 384)
+
+
+# The +1 (fat) and +2 (muscle) locomotion groups. Their bases (54/57/60/63/66) are in
+# the resident `ped` block; these ten are the whole of fat.ifp + muscular.ifp that the
+# player ever plays. 63/64/65 name the SAME clips as 54/55/56 - the bat family is not a
+# separate gait at any body type - so the set below collapses to 17 clips per block.
+BODY_TYPE_GROUPS = frozenset((55, 56, 58, 59, 61, 62, 64, 65, 67, 68))
+
+
+def vehicle_block_clips():
+    """{ifp block: [clip names]} for every animation a STREAMED group plays.
+
+ Two families, and they are selected differently:
+ * vehicle groups (88..117) contribute only their BOARDING animations - the
+ seated and steering clips are group 0 and stay resident;
+ * weapon groups (11..32) contribute EVERYTHING they own, which is at most four
+ clips each (fire / crouchfire / reload / crouchreload). The armed stance and
+ the gun walk are group 0 and stay resident, same as the seated poses.
+ """
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "data", "sa_anim_groups.json")
+    if not os.path.exists(path):
+        print("  ! %s absent - no per-block clip files" % path)
+        return {}
+    with open(path, "r", encoding="utf-8") as f:
+        groups = json.load(f)["groups"]
+    out = {}
+    for g in groups:
+        gid = g["id"]
+        is_veh = 88 <= gid < 118               # ANIM_GROUP_CARS_BEGIN.. CARS_END
+        is_wep = 11 <= gid <= 32               # ANIM_GROUP_PYTHON.. ANIM_GROUP_GOGGLES
+        is_body = gid in BODY_TYPE_GROUPS       # the fat / muscular locomotion variants
+        # b909: MELEE_1 (33).. PISTLWHP (45) - the combo groups data/melee.dat names.
+        # Adding the.ifp files to IFP_BLOCKS is only half the job: this gate decides
+        # which groups get a streamed block file at all, and with the melee range missing
+        # the new IFPs were merged and then silently dropped on the floor. Every one of
+        # these contributes ALL ten of its slots (three attacks, the ground and moving
+        # attacks, three hit reactions, the block and the fight idle).
+        is_melee = 33 <= gid <= 45
+        if not (is_veh or is_wep or is_body or is_melee):
+            continue
+        blk = g["block"].lower()
+        for aid, _flags, clip in g["anims"]:
+            if clip and (is_wep or is_body or is_melee or aid in VEH_ENTRY_ANIMS):
+                out.setdefault(blk, set()).add(clip)
+    return {k: sorted(v) for k, v in out.items()}
+
+
+def build_clips(by_name, nodeId_to_bone, names):
+    """Retarget the named IFP animations onto the hero rig -> [{name,dur,tracks}].
+ Split out of bake_model so the per-IFP-block files go through EXACTLY the same
+ bone mapping, skip list and quantisation as the clips baked into hero.bin: a
+ streamed clip has to be indistinguishable from a resident one."""
+    out_clips = []
+    for cname in names:
+        a = by_name.get(cname.lower())
+        if not a: continue
+        tracks = []; maxtime = 0.0
+        for s in a["seqs"]:
+            bi = nodeId_to_bone.get(s["boneTag"], -1)
+            if bi < 0: continue
+            if os.environ.get("HERO_DBG") and not out_clips:
+                print("  seq bone=%2d nid=%3d name='%s'" % (bi, s["boneTag"], s["name"]))
+            # SKIP bones whose component bind is IDENTITY but the IFP keyframe is a big
+            # rotation (rig mismatch -> the verts spike): the "breast" jiggle bones.
+            #
+            # ★ b879: the FINGER bones came off this list. They were dropped on the
+            # premise that "their DFF bind is straight/identity, the anim assumes a curled
+            # rest" - and the note even records the consequence, "open hand". That premise
+            # no longer holds: the baked bind for node 25 is (0.0004,-0.0001,0.1695,0.9855)
+            # = 19.5 deg and node 26 is 20.5 deg, a real curl, not identity. Dropping them
+            # ' R Finger'/'R Finger01' sequence per clip - that IS the per-weapon hand pose
+            # the original uses, and it costs 4 tracks a clip.
+            nm = s["name"].lower()
+            # + face mimic bones (Jaw, L/R Brow): the locomotion IFP animates them, but our face
+            # Keep them at bind = a neutral face; CJ doesn't need to emote during locomotion.
+            if "breast" in nm or "jaw" in nm or "brow" in nm:
+                continue
+            hasTrans = 1 if s["keyType"] in (2, 4) else 0
+            stride = STRIDE[s["keyType"]]; comp = s["keyType"] in (3, 4)
+            kf = s["kf"]; keys = []
+            for fi in range(s["numFrames"]):
+                base = fi*stride
+                if comp:
+                    q = struct.unpack_from("<4h", kf, base)
+                    t16 = struct.unpack_from("<h", kf, base+8)[0]
+                    tr = struct.unpack_from("<3h", kf, base+10) if hasTrans else (0, 0, 0)
+                else:
+                    qf = struct.unpack_from("<4f", kf, base)
+                    q = tuple(int(round(c*4096.0)) for c in qf)
+                    t16 = int(round(struct.unpack_from("<f", kf, base+16)[0]*60.0))
+                    tr = tuple(int(round(c*1024.0)) for c in struct.unpack_from("<3f", kf, base+20)) if hasTrans else (0, 0, 0)
+                keys.append((q, t16, tr))
+                maxtime = max(maxtime, t16/60.0)   # t16 is ABSOLUTE time; dur = last/max key
+            tracks.append({"bone": bi, "hasTrans": hasTrans, "keys": keys})
+        out_clips.append({"name": cname, "dur": maxtime, "tracks": tracks})
+    return out_clips
+
+
+def encode_clips(out_clips):
+    """The clip section, byte-identical to the one inside HRO2."""
+    buf = bytearray()
+    for c in out_clips:
+        nm = c["name"].encode("ascii")[:23]; nm += b"\x00"*(24-len(nm))
+        buf += nm
+        buf += struct.pack("<fHH", c["dur"], len(c["tracks"]), 0)
+        for t in c["tracks"]:
+            buf += struct.pack("<hBBH", t["bone"], t["hasTrans"], 0, len(t["keys"]))
+            for (q, tm, tr) in t["keys"]:
+                buf += struct.pack("<4hh", q[0], q[1], q[2], q[3], tm)
+                if t["hasTrans"]: buf += struct.pack("<3h", tr[0], tr[1], tr[2])
+    return bytes(buf)
+
+
+def bake_model(arg="fam1", clips=None, emit_clst=True, cut=None, blocks_out=None):
     """Bake one skinned ped into an HRO2 byte stream (multi-ped reuse: ped_bake.py
  concatenates several of these into peds.bin). emit_clst=False drops the GE-skin
  cluster section (ambient peds stay on the CPU LBS path -> ~50KB/model less RAM).
@@ -987,66 +1243,80 @@ def bake_model(arg="fam1", clips=None, emit_clst=True, cut=None):
      # etc. - the forward-leaning motorcycle pose, a DIFFERENT skeleton posture than
      # CAR_sit). Merged so CLIPS can name either source.
      by_name = {a["name"].lower(): a for a in pkg["anims"]}
-     # anim.img gotcha: bikes.ifp/rustler.ifp (motorcycle + plane rider clips) live in
-     # the PC anim/anim.img, which DOES NOT EXIST on a PS2 disc (PS2 ships only ANIM/
-     # PED.IFP + ANIM/CUTS.IMG). Source them from SA_ROOT/anim/anim.img when present
-     # (PC dev loop); on a PS2 disc it is absent -> those clips are simply dropped (the
-     # base CJ locomotion/idle set still comes from PED.IFP). Never crashes the bake.
-     _anim_img = os.path.join(SA_ROOT, "anim", "anim.img")
-     if os.path.exists(_anim_img):
+     block_of = {k: "ped" for k in by_name}      # which IFP block each animation came from
+     # The non-`ped` IFP blocks (every vehicle boarding set, swim, the fat/muscular
+     # gaits) live in DIFFERENT archives on the two platforms:
+     # PC: anim/anim.img
+     # PS2: models/gta3.img - 148.ifp entries, same ANP3 payload
+     # We used to look only in anim/anim.img and print "dropped" on a PS2 disc, which is
+     # every Quarry user: the plane and bike boarding clips silently never got baked.
+     # Search both, PS2 first, and merge whatever is found.
+     _seen_blocks = []
+     _saw_archive = False
+     for _arch in (GTA3, os.path.join(SA_ROOT, "anim", "anim.img")):
+         if not _arch or not os.path.exists(_arch):
+             continue
+         _saw_archive = True
          try:
              import sys as _sys
              _saw = os.environ.get("SAW_ROOT", "")
-             if _saw not in _sys.path: _sys.path.insert(0, _saw)
-             from core.imgarchive import ImgArchive
-             aimg = ImgArchive.open(_anim_img)
-             for blk in ("bikes.ifp", "rustler.ifp"):   # b438: + the Plane_* boarding set
-                 be = next((e for e in aimg.entries if e.name.lower() == blk), None)
-                 if be is None: continue
-                 bpkg = sa_ifp.decode(aimg.extract(be))
+             if _saw and _saw not in _sys.path: _sys.path.insert(0, _saw)
+             from core.imgarchive import ImgArchive          # noqa: F401 (SAW_ROOT)
+             aimg = ImgArchive.open(_arch)
+             want = {b.lower() for b in IFP_BLOCKS}
+             for be in aimg.entries:
+                 nm = be.name.lower()
+                 if nm not in want or nm in _seen_blocks:
+                     continue
+                 try:
+                     bpkg = sa_ifp.decode(aimg.extract(be))
+                 except Exception as e:
+                     print("  ! %s: %s" % (nm, e)); continue
+                 _seen_blocks.append(nm)
                  for a in bpkg["anims"]:
-                     by_name.setdefault(a["name"].lower(), a)
+                     if by_name.setdefault(a["name"].lower(), a) is a:
+                         block_of[a["name"].lower()] = nm[:-4]   # drop ".ifp"
          except Exception as e:
-             print("  ! bike anim load failed: %s" % e)
+             print("  ! %s: %s" % (os.path.basename(_arch), e))
+     if _seen_blocks:
+         print("  IFP blocks merged: %s" % ", ".join(sorted(_seen_blocks)))
+     elif _saw_archive:
+         # The archive is RIGHT THERE and we still merged nothing - that is a broken
+         # environment (core.imgarchive needs SAW_ROOT), not a PED.IFP-only install.
+         # Baking on regardless produced a hero.bin that looked fine and reported
+         # success while silently missing BIKEs_Ride and every vehicle boarding clip.
+         raise SystemExit("hero_bake: found %s but merged NO IFP blocks - set SAW_ROOT to the "
+                          "sa_workbench tree (core.imgarchive) and re-run. Refusing to bake a "
+                          "hero.bin without the bike/plane clips." % os.path.basename(_arch))
      else:
-         print("  anim.img absent (PS2 disc) - bike/plane rider clips dropped; base anims from PED.IFP")
-     out_clips = []
-     for cname in CLIPS:
-         a = by_name.get(cname.lower())
-         if not a: continue
-         tracks = []; maxtime = 0.0
-         for s in a["seqs"]:
-             bi = nodeId_to_bone.get(s["boneTag"], -1)
-             if bi < 0: continue
-             if os.environ.get("HERO_DBG") and not out_clips:
-                 print("  seq bone=%2d nid=%3d name='%s'" % (bi, s["boneTag"], s["name"]))
-             # SKIP bones whose component bind is IDENTITY but the IFP keyframe is a big
-             # rotation (rig mismatch -> the verts spike): the "breast" jiggle bones and
-             # the "finger" bones (their DFF bind is straight/identity, the anim assumes a
-             # curled rest). Cosmetic for v1; keep them at bind (open hand, no jiggle).
-             nm = s["name"].lower()
-             # + face mimic bones (Jaw, L/R Brow): the locomotion IFP animates them, but our face
-             # Keep them at bind = a neutral face; CJ doesn't need to emote during locomotion.
-             if "breast" in nm or "finger" in nm or "jaw" in nm or "brow" in nm:
+         print("  ! no extra IFP blocks found (neither models/gta3.img nor anim/anim.img)"
+               " - vehicle boarding clips will fall back to the generic CAR_ set")
+     out_clips = build_clips(by_name, nodeId_to_bone, CLIPS)
+
+     # ---- per-IFP-block clip files (streamed at runtime) -------------------------
+     # SA streams animations a BLOCK at a time, ref-counted (CAnimBlock,
+     # AddAnimBlockRef). The thirty vehicle groups alone name 128 distinct entry clips
+     # across 21 blocks, which no single resident file can carry, so every block other
+     # than `ped` is written out separately here and loaded on demand. Same by_name,
+     # same rig, same build_clips -> a streamed clip is byte-identical to a resident one.
+     if blocks_out:
+         want = vehicle_block_clips()
+         os.makedirs(blocks_out, exist_ok=True)
+         total = 0
+         for blk in sorted(want):
+             if blk == "ped":
+                 continue                      # `ped` is the resident block: it IS hero.bin
+             names = [n for n in want[blk] if block_of.get(n.lower()) == blk]
+             if not names:
                  continue
-             hasTrans = 1 if s["keyType"] in (2, 4) else 0
-             stride = STRIDE[s["keyType"]]; comp = s["keyType"] in (3, 4)
-             kf = s["kf"]; keys = []
-             for fi in range(s["numFrames"]):
-                 base = fi*stride
-                 if comp:
-                     q = struct.unpack_from("<4h", kf, base)
-                     t16 = struct.unpack_from("<h", kf, base+8)[0]
-                     tr = struct.unpack_from("<3h", kf, base+10) if hasTrans else (0, 0, 0)
-                 else:
-                     qf = struct.unpack_from("<4f", kf, base)
-                     q = tuple(int(round(c*4096.0)) for c in qf)
-                     t16 = int(round(struct.unpack_from("<f", kf, base+16)[0]*60.0))
-                     tr = tuple(int(round(c*1024.0)) for c in struct.unpack_from("<3f", kf, base+20)) if hasTrans else (0, 0, 0)
-                 keys.append((q, t16, tr))
-                 maxtime = max(maxtime, t16/60.0)   # t16 is ABSOLUTE time; dur = last/max key
-             tracks.append({"bone": bi, "hasTrans": hasTrans, "keys": keys})
-         out_clips.append({"name": cname, "dur": maxtime, "tracks": tracks})
+             bc = build_clips(by_name, nodeId_to_bone, names)
+             if not bc:
+                 continue
+             blob = b"ABLK" + struct.pack("<HHI", 1, len(bc), 0) + encode_clips(bc)
+             open(os.path.join(blocks_out, "blk_%s.bin" % blk), "wb").write(blob)
+             total += len(blob)
+             print("  block %-14s %2d clips  %6d B" % (blk, len(bc), len(blob)))
+         print("  == blocks: %d files, %d bytes ==" % (len(os.listdir(blocks_out)), total))
 
     # emit
     buf = bytearray()
@@ -1078,15 +1348,7 @@ def bake_model(arg="fam1", clips=None, emit_clst=True, cut=None):
         buf += struct.pack("<HHHH", t["width"], t["height"], nl, t["clut_entries"])
         buf += struct.pack("<II", len(texel), len(clut))
         buf += texel + clut
-    for c in out_clips:
-        nm = c["name"].encode("ascii")[:23]; nm += b"\x00"*(24-len(nm))
-        buf += nm
-        buf += struct.pack("<fHH", c["dur"], len(c["tracks"]), 0)
-        for t in c["tracks"]:
-            buf += struct.pack("<hBBH", t["bone"], t["hasTrans"], 0, len(t["keys"]))
-            for (q, tm, tr) in t["keys"]:
-                buf += struct.pack("<4hh", q[0], q[1], q[2], q[3], tm)
-                if t["hasTrans"]: buf += struct.pack("<3h", tr[0], tr[1], tr[2])
+    buf += encode_clips(out_clips)
 
     # 'CLST' - GE-hardware-skinning clusters (<=8 bones each; u8 weights positional to
     # boneList /128). A SEPARATE section appended after the legacy pre-skin data so the
@@ -1135,8 +1397,12 @@ def main():
     # argv[2] = explicit output path (Quarry passes <OutDir>/peds/hero.bin). When
     # given we write ONLY there and skip the dev-loop memstick mirror - the converter
     # must not touch a live install.
-    out = sys.argv[2] if len(sys.argv) > 2 else OUT
-    buf = bake_model(arg)
+    out = sys.argv[2] if (len(sys.argv) > 2 and not sys.argv[2].startswith("--")) else OUT
+    # --blocks <dir>: also write the per-IFP-block clip files the runtime streams.
+    blocks_out = None
+    if "--blocks" in sys.argv:
+        blocks_out = sys.argv[sys.argv.index("--blocks") + 1]
+    buf = bake_model(arg, blocks_out=blocks_out)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     open(out, "wb").write(buf)
     if len(sys.argv) > 2:

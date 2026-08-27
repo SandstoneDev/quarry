@@ -3,7 +3,7 @@
 
 SA plays a random one of 4 loading tunes over the loading screens: frontend event
 AE_FRONTEND_LOADING_TUNE_START picks seed 0..3 and plays sounds {2*seed, 2*seed+1}
-of SND_BANK_GENRL_LOADING (bank 82) as a stereo L/R pair (the reference notes
+of SND_BANK_GENRL_LOADING (bank 82) as a stereo L/R pair (the reference sources
 AEFrontendAudioEntity.cpp:20-22, 686-724). This tool extracts the 8 mono PCM
 sounds, interleaves each pair into one stereo 16-bit WAV, and deploys them; the
 engine (LoadMusic.c) streams a random one during the load.

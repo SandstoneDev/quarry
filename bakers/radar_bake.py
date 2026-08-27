@@ -1,34 +1,40 @@
 #!/usr/bin/env python3
-"""radar_bake.py - bake the the source game radar map into a single stitched atlas (radar.bin)
-for the PSP port's minimap.
+"""radar_bake.py - bake the source game radar map into per-tile 4-bit palettized textures
+(radar.bin) for the PSP port's minimap, at native resolution.
 
 SA radar (CRadar): the world map is a 12x12 grid of 128x128 tiles, each covering
 500 world units, the grid spanning -3000..3000 on both axes. Tile (x,y) texture is
 the TXD "radarNN" with NN = y*12 + x, in gta3.img. North = +Y = up; the tile grid's
 row y=0 is the northern (+Y) edge.
 
-We stitch all 144 tiles into one 1536x1536 atlas (tile i at cell (i%12, i//12), so
-atlas u=0 is world X=-3000 / east-growing, atlas v=0 is world Y=+3000 / south-growing)
-then box-downsample to 512x512 (PSP max texture size) RGBA8888. The runtime draws a
-disc-fan whose UVs come from the inverse radar transform -> a clean rotating circular
-minimap from one textured draw.
+Each tile is packed alone (tools/radar_palette.py: pack_tile), NOT stitched into one
+atlas and squeezed down to the PSP's 512-texel texture limit. Measured across all 144
+tiles, colours per tile are min 1 / median 14 / max 15, so every tile fits an exact
+4-bit palette at its native 128x128 - no downsample, no lost detail. The runtime draws
+a disc-fan per visible tile whose UVs come from the inverse radar transform -> a clean
+rotating circular minimap built from several small textured draws instead of one big one.
 
-geo-ref: atlasU = (wx + 3000) / 6000 ; atlasV = (3000 - wy) / 6000 (both 0..1)
+geo-ref: tile (tx,ty) covers world X in [-3000+tx*500, -3000+(tx+1)*500],
+ world Y in [3000-(ty+1)*500, 3000-ty*500]
 
 Also packs the real HUD radar sprites from models/hud.txd: radar_centre (player
-marker) + radar_north (the N marker), 16x16 RGBA each.
+marker) + radar_north (the N marker) at 16x16, and radardisc (the minimap outline
+the game itself uses) at 32x32.
 
-radar.bin (RDR5):
- 'RDR5'
- u32 atlasW, atlasH (512, 512)
- u32 spriteW, spriteH (16, 16)
- u32 nBlips (len(BLIP_ORDER))
- u32 ringW, ringH (64, 64) - radarRingPlane flight overlay
- atlasW*atlasH RGBA8888 (map atlas)
- spriteW*spriteH RGBA8888 (radar_centre)
- spriteW*spriteH RGBA8888 (radar_north)
+radar.bin (RDR6):
+ 'RDR6'
+ u32 nTiles, tileW, tileH, gridW, gridH (144, 128, 128, 12, 12)
+ u32 spriteW, nBlips, discW (16, len(BLIP_ORDER), 32)
+ u32 ringW, ringH, reserved[5] (64, 64, 0,0,0,0,0)
+ per tile, in row-major (tx,ty) grid order, nTiles records:
+ u16 nColours (0 if the tile is absent from the disc)
+ nColours * RGBA8888 (palette, only if nColours > 0)
+ (tileW/2)*tileH bytes (4-bit indices, 2px/byte, low nibble = even x; only if nColours > 0)
+ spriteW*spriteW RGBA8888 (radar_centre)
+ spriteW*spriteW RGBA8888 (radar_north)
+ discW*discW RGBA8888 (radardisc)
  ringW*ringH RGBA8888 (radarRingPlane, green-recolored ground + white horizon)
- nBlips * spriteW*spriteH RGBA8888 (all radar_* blip sprites, in BLIP_ORDER)
+ nBlips * spriteW*spriteW RGBA8888 (all radar_* blip sprites, in BLIP_ORDER)
 BLIP_ORDER == the runtime BLIP_* enum in Radar.h (index = enum value). Keep in sync.
 """
 import os
@@ -84,25 +90,26 @@ def main():
     im = sa_img.SaImg(GTA3_IMG)
     have = {n.lower() for n in im.names()}
 
-    stitched = np.zeros((NY*TILE, NX*TILE, 4), dtype=np.uint8)
+    # Native tiles, one palette each. No stitching, no downsample: the old path squeezed
+    # 1536x1536 into 512x512 because that is the PSP's texture limit, and a third of the
+    # detail went with it. Tiles stay separate, so each keeps its own size and palette.
+    import radar_palette
+    tiles = []                       # (clut, packed) per grid cell, None where absent
     ok = 0
     for nn in range(NX*NY):
-        name = "radar%02d.txd" % nn            # IMG: radar00..radar143 (min 2-digit pad)
+        name = "radar%02d.txd" % nn          # IMG: radar00..radar143 (min 2-digit pad)
         if name.lower() not in have:
-            continue
+            tiles.append(None); continue
         d = sa_txd.decode(im.extract(name))
         if not d:
-            continue
+            tiles.append(None); continue
         w, h, rgba = next(iter(d.values()))
-        tile = np.frombuffer(rgba, np.uint8).reshape(h, w, 4)
+        tile = np.frombuffer(rgba, np.uint8).reshape(h, w, 4).copy()
         if (h, w) != (TILE, TILE):
-            tile = box_downsample(tile, TILE, TILE) if (h > TILE) else tile
-        tx, ty = nn % NX, nn // NX
-        stitched[ty*TILE:(ty+1)*TILE, tx*TILE:(tx+1)*TILE] = tile[:TILE, :TILE]
+            tile = box_downsample(tile, TILE, TILE)
+        tile[:, :, 3] = 255                  # opaque, as the atlas was
+        tiles.append(radar_palette.pack_tile(tile[:TILE, :TILE]))
         ok += 1
-
-    atlas = box_downsample(stitched, ATLAS, ATLAS)
-    atlas[:, :, 3] = 255                        # force opaque
 
     # real HUD radar sprites (player + north marker) from models/hud.txd
     SPR = 16
@@ -115,6 +122,16 @@ def main():
         return a.tobytes()
     centre = sprite("radar_centre")
     north  = sprite("radar_north")
+
+    # The minimap outline the game itself uses. It is a QUARTER arc, white with alpha,
+    # which the original mirrors across both axes to close the ring - which is why our
+    # procedural five-pixel ring never matched it.
+    DISC = 32
+    dw, dh, drgba = hud["radardisc"]
+    disc = np.frombuffer(drgba, np.uint8).reshape(dh, dw, 4)
+    if (dh, dw) != (DISC, DISC):
+        disc = box_downsample(disc, DISC, DISC)
+    disc_bytes = disc.tobytes()
 
     # b476: radarRingPlane (64x64) - the SA in-plane artificial-horizon overlay: a translucent
     # ground half-disc + a white horizon bar with an upward nose-notch, drawn rotated by the plane's
@@ -144,15 +161,25 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     out = os.path.join(OUT_DIR, "radar.bin")
     with open(out, "wb") as f:
-        f.write(b"RDR5")   # b476: +radarRingPlane block (ringW,ringH in header, block after north)
-        f.write(struct.pack("<7I", ATLAS, ATLAS, SPR, SPR, len(BLIP_ORDER), RINGSZ, RINGSZ))
-        f.write(atlas.tobytes())
+        f.write(b"RDR6")     # tiles at native resolution, 4-bit with a palette each
+        f.write(struct.pack("<8I", len(tiles), TILE, TILE, NX, NY,
+                            SPR, len(BLIP_ORDER), DISC))
+        f.write(struct.pack("<7I", RINGSZ, RINGSZ, 0, 0, 0, 0, 0))   # ring + reserve
+        for t in tiles:
+            if t is None:
+                f.write(struct.pack("<H", 0))          # absent tile: no palette, no pixels
+                continue
+            clut, packed = t
+            f.write(struct.pack("<H", len(clut)))
+            f.write(clut.tobytes())
+            f.write(packed.tobytes())
         f.write(centre)
         f.write(north)
+        f.write(disc_bytes)
         f.write(ring_bytes)
         f.write(bytes(blips))
-    print("radar.bin: %d/%d tiles -> %dx%d atlas + centre/north + %d blips (%d missing) %dpx (%.2f MB) -> %s"
-          % (ok, NX*NY, ATLAS, ATLAS, len(BLIP_ORDER), missing, SPR, os.path.getsize(out)/1e6, out))
+    print("radar.bin RDR6: %d/%d tiles at %dx%d native + centre/north/disc + %d blips (%d missing) (%.2f MB) -> %s"
+          % (ok, NX*NY, TILE, TILE, len(BLIP_ORDER), missing, os.path.getsize(out)/1e6, out))
 
 
 if __name__ == "__main__":

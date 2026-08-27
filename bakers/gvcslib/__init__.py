@@ -1,6 +1,7 @@
-"""gvcslib - codec library for the source console title (PSP).
+"""gvcslib - codec library for the source game: the source console title (PSP).
 
-Asset codecs (decode plus byte-exact encode) used by the map port.
+derived asset codecs (decode + byte-exact-encode) for modding / SA->the console title map port.
+See ../ RE library/ (Obsidian vault) for the format derived notes.
 """
 from .container import Container  # noqa: F401
 

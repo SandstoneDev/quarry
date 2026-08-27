@@ -1,4 +1,4 @@
-"""XTX - the original publisher Leeds PSP texture (the source console title).
+"""XTX - the original publisher Leeds PSP texture (the source game: the source console title).
 
 An XTX file is the shared 0x20-byte 'tex' (0x00746578) relocatable container
 (see gvcslib.container) followed by one (single-texture) or many (dictionary)

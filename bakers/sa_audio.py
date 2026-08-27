@@ -7,7 +7,7 @@ the source game's PC banks ship as raw **16-bit mono PCM** under `AUDIO/SFX/<PAK
 by `AUDIO/CONFIG/*.DAT`. So the port reads the PC config + bank headers, slices each
 sample, and transcodes PCM->VAG here (the read-only `gvcslib.vag` decoder validates us).
 
-On-disk formats (verified on real PC 1.0 US bytes, cross-checked vs the reference notes
+On-disk formats (verified on real PC 1.0 US bytes, cross-checked vs the reference sources
 `AEBankLoader`/`AEBankSlot`):
 
  BankLkup.dat - AEBankLookup[710], 0xC each:

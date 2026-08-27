@@ -1,4 +1,4 @@
-"""GXT localized text codec for the source console title (PSP).
+"""GXT localized text codec for the source game: the source console title (PSP).
 
 File layout (verified against ENGLISH/FRENCH/GERMAN/ITALIAN/SPANISH.GXT,
 87 tables / 6739 keys each):

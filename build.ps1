@@ -1,4 +1,4 @@
-<#
+﻿<#
     build_bundle.ps1 - Quarry F4 dependency-free release builder.
 
     Produces  dist/Quarry/  (the end user unzips and runs it; nothing Python-side
@@ -184,7 +184,13 @@ $DevOnly = @(
     "logo_bake.py","theme_bake.py","qrsplash_gen.py",       # not wired into ConvertPipeline; unbundled deps
     "font_ttf_bake.py",                                     # font4 dropped: SA has no disc Pricedown; engine aliases font4->font2
     "ppsspp_red_watch.py","ppsspp_vram_shot.py","shot2png.py",  # emulator dev tooling
-    "sonic_asset_dump.py","psp_dashboard_server.py","pt_bin2chrome.py"  # mod dev / telemetry / profiler
+    "sonic_asset_dump.py","psp_dashboard_server.py","pt_bin2chrome.py",  # mod dev / telemetry / profiler
+    "radio_mod_bake.py",                                    # personal radio-mod example
+    "node_probe.py","wheel_census.py","vehicle_node_census.py",  # disc-measuring probes: research, not conversion
+    "mipsref.py","uv_span_stat.py",                         # ELF/UV analysis: imported by nothing the converter runs
+    "test_pt_bin2chrome.py","test_car_bake_wheels.py","test_ps2_uv_tess.py",
+    "test_radar_palette.py","test_cull_air_bake.py","test_scm_asm.py",
+    "test_ps2dff_binmesh.py"                                # baker unit tests
 )
 foreach ($f in $DevOnly) {
     $fp = Join-Path $Bakers $f

@@ -99,7 +99,7 @@ public sealed class Manifest
     }
 
     /// Like Snapshot, but limited to the given subtree roots so parallel stages that
-    /// write disjoint folders never cross-attribute each other's files. A root of means
+    /// write disjoint folders never cross-attribute each other's files. A root of "" means
     /// the data/ root's top-level files only (non-recursive); any other root is a subdir
     /// walked recursively. The manifest file itself is always excluded.
     public static Dictionary<string, (long size, long ticks)> SnapshotScoped(string dataDir, IEnumerable<string> roots)

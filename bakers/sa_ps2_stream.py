@@ -29,58 +29,100 @@ import os
 import struct
 import sys
 
-HDR = 0x2000
-# The ADPCM frames do not start at HDR: there are four more bytes of header first.
-# Measured, not guessed - a PS-ADPCM frame header is byte0 = shift | filter<<4 with
-# filter <= 4 and shift <= 12, and byte1 = flags <= 7, so the frame grid announces
-# itself. Testing all 16 possible alignments over 30 elements from CUTSCENE, AMBIENCE,
-# CH, TK and ADVERTS gives 100% valid frame headers at +4 and about 10% at +0, at the
-# start of the stream and deep inside it alike. Decoding from +0 fed the predictor a
-# half-frame of garbage on every frame, which is what made the radio and the cutscene
-# voice come out as noise (2.2% of samples pinned to the clamp against 0.00% for the
-# known-good VAG bodies in sfx.bin).
-DATA = HDR + 4
+# ⚠ 0x1F84, not 0x2000 - and there is no "+4".
+#
+# The +4 came from a frame-alignment probe: a PS-ADPCM frame header announces itself
+# (byte0 = shift | filter<<4 with filter <= 4 and shift <= 12, byte1 = flags <= 7), and
+# testing all 16 alignments gave 100% valid headers at 0x2004. That probe was RIGHT
+# about the frame grid and blind to the base, because 0x2004 == 0x1F84 (mod 16): it
+# cannot tell a correct base from one 0x80 past it.
+#
+# Ground truth is on the IOP, not the EE - which is why scanning SLES_525.41 for these
+# constants finds nothing. system/IOPAudio.irx copies the header with an explicit length
+# of 8068 = 0x1F84 (.text 0x556C) and keeps three such buffers exactly 0x1F84 apart at
+# 0xA5B0 / 0xC534 / 0xE4B8. This project's own PC baker has had it right the whole time:
+# tools/radio_bake.py:23, HDR = 0x1F84, sizeof(tTrackInfo). The PS2 branch re-derived it
+# independently and landed 0x80 off.
+HDR = 0x1F84
+DATA = HDR
 DESC = 0x1F40
+NCHAN = 0x1F80                   # u16: how many sub-streams this element carries
 FRAME = 16
 SAMPLES_PER_FRAME = 28
-INTERLEAVE = 0x2000
 
 # ---- source channel layout ---------------------------------------------------
-# An element repeats a fixed period: the left channel's half, the right channel's
-# half, then padding. Measured, not assumed - the two halves of one period are the
-# same moment in stereo and correlate 0.98 (CUTSCENE), 0.99 (radio) and 0.88
-# (AMBIENCE), while halves taken from DIFFERENT periods correlate 0.009. The old
-# INTERLEAVE guess of 0x2000 put both halves into each assembled channel, so every
-# line of dialogue came out twice in a row.
-STREAM_HALF = 0x10000            # bytes of one channel per period
-STREAM_PAD = 0x1000              # zero padding that closes each period
-STREAM_PERIOD = STREAM_HALF * 2 + STREAM_PAD
+# A period holds ONE block per sub-stream, laid end to end in channel order, each sized
+# in proportion to that sub-stream's rate. IOPAudio.irx.text 0x4B50:
+#
+# block_i = PERIOD * (rate_i / 75) / 660
+# ch[i].offset = sum of block_0.. block_{i-1}
+#
+# PERIOD is 0x21000 - half the 0x42000 stream buffer (.text 0x38DC, halved at 0x5084),
+# and the element length is rounded to whole periods by the same code (.text 0x4C20
+# divides by 0x21000 and multiplies back).
+#
+# ★ Radio elements carry FOUR sub-streams, not two: 750, 750, 24000, 24000 Hz. The
+# blocks are 0x800, 0x800, 0x10000, 0x10000 and they fill the period EXACTLY
+# (320+320+10+10 = 660 rate units). So the stereo audio starts at +0x1000, and the
+# 0x1000 an earlier model called "padding that closes each period" is in fact those two
+# 750 Hz channels sitting at the FRONT of it.
+#
+# Reading the audio at +0 instead of +0x1000 put 0xF80 bytes of 750 Hz material into
+# every chunk of the left channel, played at 24 kHz - 289 ms sped up 32x, once every
+# 0x10000 bytes = 4.78 s. That is the periodic screech; the right channel's matching
+# 4.49 s backward jump is the "rewind". It was never a last-period defect: the offset
+# is wrong in EVERY period, and the zeros were merely the only part visible to a scan.
+#
+# CUTSCENE / AMBIENCE / BEATS elements carry only the two 24 kHz channels. 660 is
+# hard-coded, so 320+320 leaves 0x1000 of genuine slack at the END of their periods --
+# which is how the old "half, half, padding" reading came to look right for them.
+STREAM_PERIOD = 0x21000
+RATE_UNIT = 75                   # the divisor IOPAudio applies to each rate
+RATE_TOTAL = 660                 #...and the denominator it divides the period by
 
-# Output interleave: the runtime refills 128 frames per channel at a time, so laying
-# the channels out in that unit lets one sequential read serve them all. Keep this in
-# step with ADPCM_WINDOW_BYTES in platform_psp/Adpcm.h.
-WINDOW = 128 * FRAME
+
+def block_layout(pairs):
+    """[(bytes, rate)] -> ([block size per channel], [block offset in the period]).
+
+ Straight from the loop above; the assert is the property that makes the model
+ checkable, not decoration: the blocks must fit inside one period.
+ """
+    sizes = [STREAM_PERIOD * (rate // RATE_UNIT) // RATE_TOTAL for _, rate in pairs]
+    offs, acc = [], 0
+    for sz in sizes:
+        offs.append(acc)
+        acc += sz
+    if acc > STREAM_PERIOD:
+        raise ValueError("blocks total 0x%X, larger than the 0x%X period" % (acc, STREAM_PERIOD))
+    return sizes, offs
 
 
-def channel_bytes(raw, ch, bytes_per_ch):
-    """Assemble one channel out of an element's payload.
+def channel_bytes(raw, blk_off, blk_size, bytes_per_ch):
+    """Assemble one sub-stream out of an element's payload.
 
- `raw` starts at DATA (the first ADPCM frame). Returns exactly `bytes_per_ch`
- bytes, or fewer if the element is short.
+ `raw` starts at DATA. `blk_off`/`blk_size` come from block_layout - a channel is
+ not "the n-th half of the period", it is its own block at its own offset.
  """
     out = bytearray()
     period = 0
     while len(out) < bytes_per_ch:
-        start = period * STREAM_PERIOD + ch * STREAM_HALF
+        start = period * STREAM_PERIOD + blk_off
         if start >= len(raw):
             break
-        take = min(STREAM_HALF, bytes_per_ch - len(out))
+        take = min(blk_size, bytes_per_ch - len(out))
         chunk = raw[start:start + take]
         if not chunk:
             break
         out += chunk
         period += 1
     return bytes(out)
+
+
+# Output interleave: the runtime refills 128 frames per channel at a time, so laying
+# the channels out in that unit lets one sequential read serve them all. Keep this in
+# step with ADPCM_WINDOW_BYTES in platform_psp/Adpcm.h.
+WINDOW = 128 * FRAME
+
 
 # SPU ADPCM predictor coefficients, scaled by 64
 COEF = ((0, 0), (60, 0), (115, -52), (98, -55), (122, -60))
@@ -116,18 +158,30 @@ def read_header(audio_dir, packs, tracks, tid):
         head = f.read(HDR)
     if head[:4] != b"\xff\xff\xff\xff":
         raise ValueError("track %d: no stream header at %s+%d" % (tid, packs[pid], off))
-    # The descriptor holds two (bytes, rate) pairs per channel. Radio packs fill both
-    # - the first scaled down by 32, the second the real figures - while CUTSCENE
-    # fills only the first and leaves the rest zero. Pick whichever pair carries a
-    # believable sample rate rather than assuming a fixed slot.
-    d = struct.unpack_from("<8I", head, DESC)
-    nbytes = rate = 0
-    for i in (4, 0):
-        if 8000 <= d[i + 1] <= 48000 and d[i]:
-            nbytes, rate = d[i], d[i + 1]
-            break
+    # One (bytes, rate) descriptor per SUB-STREAM, and nchan says how many there are.
+    # A radio element has four: two at 750 Hz whose byte counts are the audio's / 32,
+    # then the 24 kHz stereo pair. An earlier reading called those first two "the same
+    # figures scaled by 32" and skipped past them to the pair with a believable rate --
+    # right about which pair carries the audio, wrong about what the others were, and
+    # blind to the fact that they occupy the front of every period.
+    nchan = struct.unpack_from("<H", head, NCHAN)[0]
+    if not 1 <= nchan <= 8:
+        raise ValueError("track %d: %d sub-streams claimed, expected 1..8" % (tid, nchan))
+    pairs = [struct.unpack_from("<2I", head, DESC + i * 8) for i in range(nchan)]
+    sizes, offs = block_layout(pairs)
+
+    # The audio is the fastest sub-stream. Radio: indices 2 and 3. Cutscene/ambience:
+    # 0 and 1, there being nothing else.
+    top = max(r for _b, r in pairs)
+    audio = [i for i, (_b, r) in enumerate(pairs) if r == top]
+    if not 8000 <= top <= 48000 or not audio:
+        raise ValueError("track %d: no sub-stream at a playable rate (rates %s)"
+                         % (tid, [r for _b, r in pairs]))
+    nbytes = pairs[audio[0]][0]
     return dict(pack=packs[pid], path=path, offset=off, size=size,
-                bytes_per_ch=nbytes, rate=rate, channels=2,
+                bytes_per_ch=nbytes, rate=top, channels=len(audio),
+                nchan=nchan, pairs=pairs,
+                blk_off=[offs[i] for i in audio], blk_size=[sizes[i] for i in audio],
                 samples=(nbytes // FRAME) * SAMPLES_PER_FRAME)
 
 
@@ -146,7 +200,7 @@ def subtitle_windows(path):
     return out
 
 
-def _coarse_energy(path, off, bytes_per_ch, rate, seconds):
+def _coarse_energy(path, off, bytes_per_ch, rate, seconds, blk_off, blk_size):
     """Per-second loudness of channel 0, straight off the ADPCM nibbles.
 
  A frame's amplitude is about mean|nibble| scaled by its own shift, which is all
@@ -154,14 +208,15 @@ def _coarse_energy(path, off, bytes_per_ch, rate, seconds):
  in full just to identify one of them.
  """
     want_frames = int(seconds * rate / SAMPLES_PER_FRAME)
+    want = want_frames * FRAME
+    # Was hand-walking a 0x2000 interleave that does not exist in this format. Go
+    # through the real block layout instead, reading whole periods so a block is never
+    # cut in half.
+    periods = (want + blk_size - 1) // blk_size + 1
     with open(path, "rb") as f:
         f.seek(off + DATA)
-        raw = f.read(min(bytes_per_ch * 2, want_frames * FRAME * 2 + 2 * INTERLEAVE))
-    ch0 = bytearray()
-    p = 0
-    while p < len(raw) and len(ch0) < want_frames * FRAME:
-        ch0 += raw[p:p + INTERLEAVE]
-        p += 2 * INTERLEAVE
+        raw = f.read(periods * STREAM_PERIOD)
+    ch0 = channel_bytes(raw, blk_off, blk_size, min(want, bytes_per_ch))
     per_sec = max(1, int(rate / SAMPLES_PER_FRAME))
     energy, acc, cnt = [], 0.0, 0
     for fr in range(len(ch0) // FRAME):
@@ -204,7 +259,8 @@ def match_by_subtitles(audio_dir, packs, tracks, pack_name, windows):
             continue
         if h["samples"] / float(h["rate"] or 1) < span * 0.9:
             continue                      # too short to hold the whole scene
-        energy = _coarse_energy(h["path"], h["offset"], h["bytes_per_ch"], h["rate"], span + 3)
+        energy = _coarse_energy(h["path"], h["offset"], h["bytes_per_ch"], h["rate"], span + 3,
+                               h["blk_off"][0], h["blk_size"][0])
         if not energy:
             continue
         ins = out = 0.0
@@ -260,7 +316,8 @@ def decode(audio_dir, packs, tracks, tid):
     with open(h["path"], "rb") as f:
         f.seek(h["offset"] + DATA)
         raw = f.read(h["size"])
-    return h["rate"], [decode_channel(channel_bytes(raw, c, n)) for c in range(2)]
+    return h["rate"], [decode_channel(channel_bytes(raw, h["blk_off"][c], h["blk_size"][c], n))
+                       for c in range(len(h["blk_off"]))]
 
 
 def write_wav(path, rate, chans):

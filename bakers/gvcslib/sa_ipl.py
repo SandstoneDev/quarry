@@ -34,7 +34,7 @@ from typing import List, Optional, Tuple
 # Binary `bnry` header:,,. INST record
 # = 7 float32 (pos xyz + quat xyzw) then 3 int32: model_id, flagsArea, lod.
 # The middle int32 is NOT an interior id - it is flagsArea = (flags<<8)|areaCode.
-# SA loader CFileLoader::CreateEntityFromInstance (the original loader) reads it
+# SA loader CFileLoader::CreateEntityFromInstance (gta-sa.) reads it
 # as: low byte -> entity bM_areaCode; high bits -> flags (0x100 underwater,
 # 0x200 invert-rotation, 0x400 tunnel, 0x800 tunnel-transition, 0x1000 unknown).
 # Proven against gta3.img (observed 0x0/0x12/0x100/0x200/0x400, never 0..18).

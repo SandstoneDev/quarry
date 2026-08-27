@@ -1,10 +1,10 @@
 // Quarry entry point. CLI verbs for development smoke tests against reference
 // images; no args = the GUI.
-// Quarry --probe <iso> print detection result
-// Quarry --list <iso> [prefix] list ISO contents (optionally under prefix)
-// Quarry --imgdir <iso> <path> list an IMG archive's directory (first 20 + count)
-// Quarry --convert <iso> <out> [ids] run the pipeline headless (ids = comma
-// list of section ids; default = all available)
+//   Quarry --probe <iso>            print detection result
+//   Quarry --list <iso> [prefix]    list ISO contents (optionally under prefix)
+//   Quarry --imgdir <iso> <path>    list an IMG archive's directory (first 20 + count)
+//   Quarry --convert <iso> <out> [ids]  run the pipeline headless (ids = comma
+//                                        list of section ids; default = all available)
 namespace Quarry;
 
 public static class Program
@@ -81,7 +81,7 @@ public static class Program
                 }
                 case "--verify":
                 {
-                    // Quarry --verify <dataDir>: integrity check against the manifest
+                    // Quarry --verify <dataDir> : integrity check against the manifest
                     string dataDir = args[1];
                     var m = Manifest.Load(dataDir);
                     if (m.Stages.Count == 0)
@@ -126,7 +126,7 @@ public static class Program
     }
 
     /// Open an IMG archive stream: from inside an ISO (imgPathOnIso given) or a
-    /// local.img file. Caller disposes.
+    /// local .img file. Caller disposes.
     private static Stream OpenImg(string path, string? imgPathOnIso)
     {
         if (imgPathOnIso is not null)

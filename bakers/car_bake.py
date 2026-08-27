@@ -48,7 +48,7 @@ car.bin layout (LE), all after a 'CAR3' magic:
 
 PLN1 (--plane, build 434): the CAR4 layout with two insertions (everything else
 byte-identical, see the writer below + Vehicle.c load_carlike - they are the truth):
- 'PLN1'
+ 'PLN2'
  f32 handling[24]
  f32 fly[21] (handling.cfg $-line, research plane_port.md par.4:
  Thrust FallOff Yaw YawStab SideSlip Roll RollStab
@@ -57,6 +57,11 @@ byte-identical, see the writer below + Vehicle.c load_carlike - they are the tru
  u8 colPrim[3], colSec[3], pad[2]
  f32 seat[3]; f32 wheelScale, wheelRadius
  f32 wheelMount[4][3] (raw DFF dummies; coincident tandem pairs kept - the runtime spreads them like the bike +-0.3)
+ u8 wheelParent[4] (b837: gear slot each wheel hangs from in the DFF - 0 gear_l, 1 gear_r, 2 misc_a, 3 misc_b, 0xFF none.
+ The wheels are CHILDREN of the gear frames, so the
+ gear rotation carries them; that is the whole
+ visible retraction, and m_anWheelStatus MISSING is
+ physics only - PreRender never reads it.)
  u8 nProp, pad[3]
  f32 propAnchor[2][4] (xyz = shaft pivot, w = spin axis code: 1.0 = Y)
  ... then COL box+spheres / tex table / comps / vlo / wheel / prim blocks as CAR4.
@@ -852,16 +857,32 @@ PLANE_PANELS = [
     ("elevator",     "elev",   6, 0),
     ("aileron_l",    "ail_l",  6, 0),
     ("aileron_r",    "ail_r",  6, 0),
+    # b834: gear_l/gear_r are plane nodes 21/22. The rotation AXIS is per-MODEL in the
+    # original (CPlane::PreRender 0x6FED50: one axis for nodes 21/22, another for 23/24),
+    # not per-frame, so the axis written here is a placeholder - the engine overrides it
+    # from its own PLANE_GEAR table. Angles: Rustler -85/+85 about Y; Shamal and AT-400
+    # the same plus 130 about X on misc_a; Hydra -90/-90/-80/+130 about X; Nevada +75/+75
+    # about X; Andromada +130/+130/-130 about X.
     ("gear_l",       "gear_l", 7, 0),
     ("gear_r",       "gear_r", 7, 0),
     ("moving_prop",  "prop",   5, 1),
     ("moving_prop2", "prop2",  5, 1),
-    # b440: Hydra VTOL nozzles (SA PreRender rotates BOTH misc frames about X by
-    # nozzle*(pi/2)/5000; other planes have no misc_a/b atomics so this is
-    # hydra-only in practice). Runtime: angle = s_nozzleAngle, pivots double as
-    # the jet-exhaust fx anchors. Until b440 these merged into the static body.
+    # misc_a / misc_b = plane nodes 23/24. b440 guessed these were the Hydra's VTOL
+    # nozzles and named the outputs accordingly; b834 read PreRender (0x6FED50) and they
+    # are GEAR parts on all four jets - Shamal/AT-400 rotate misc_a 130 deg about X with
+    # the gear, and the Hydra rotates misc_a -80 and misc_b +130. The names are kept
+    # because the engine dispatches on them and changing them would skew every baked
+    # veh_*.bin already on a memstick.
     ("misc_a",       "nozzle_a", 8, 0),
     ("misc_b",       "nozzle_b", 8, 0),
+    # b834: the REAL Hydra nozzle frames. PreRender rotates nodes 3 and 6 - wheel_rm_dummy
+    # and wheel_lm_dummy, which the Hydra reuses as thrust-vector pivots - about X by
+    # m_wMiscComponentAngle * (pi/2) / NOZZLE_ROTATE_LIMIT. b440 had the angle law right and
+    # the frames wrong; until this bake runs, the Hydra's nozzles do not rotate. Other planes
+    # have no mid-wheel atomics, so this is hydra-only in practice (the car bake merged them
+    # into the static body before now). The pivots also anchor the jet-exhaust fx.
+    ("wheel_rm_dummy", "nozzle_r", 8, 0),
+    ("wheel_lm_dummy", "nozzle_l", 8, 0),
 ]
 PLANE_DOORS = [("door_lf", "door_lf", 1, 2), ("door_rf", "door_rf", 1, 2)]
 UV_LIMIT = 8.0            # |s16 UV * 4096| ceiling on the GE (psp-developer trap #1)
@@ -956,6 +977,42 @@ def bake_plane(dff_name, txd_name, handling, carcols_name, wheel_scale, out_path
     mounts = [wpos("wheel_lf_dummy"), wpos("wheel_rf_dummy"),
               wpos("wheel_lb_dummy"), wpos("wheel_rb_dummy")]
     seat = wpos("ped_frontseat")
+
+    # b837: WHICH GEAR FRAME EACH WHEEL HANGS FROM.
+    #
+    # ★★ In the DFF the retracting wheels are CHILDREN of the gear frames, so when
+    # CPlane::PreRender rotates gear_l/gear_r/misc_a/misc_b the wheels swing with them --
+    # that is the whole visible gear animation. m_anWheelStatus going MISSING is physics
+    # only; a scan of the retail binary finds ZERO reads of it anywhere in PreRender.
+    # The port flattened the hierarchy at bake time and drew wheels at fixed mounts,
+    #
+    # The parenting read off the disc, and it corroborates the angle table exactly --
+    # misc_a exists on precisely the models whose NOSE pair hangs from it:
+    #
+    # rustler lf,rf -> gear_l,gear_r lb,rb -> root (fixed tailwheel)
+    # nevada lf,rf -> gear_l,gear_r lb,rb -> chassis_dummy (fixed)
+    # shamal lf,rf -> misc_a (both) lb,rb -> gear_l,gear_r
+    # at400 lf,rf -> misc_a (both) lb,rb -> gear_l,gear_r
+    # androm lf,rf -> misc_a (both) lb,rb -> gear_l,gear_r
+    # hydra lf -> misc_b, rf -> misc_a lb,rb -> gear_l,gear_r
+    #
+    # 0..3 index the runtime's gear slots (gear_l, gear_r, misc_a, misc_b); 0xFF = the
+    # wheel does not move with the gear. Hydra's wheel_lm/rm_dummy sit at the ROOT, which
+    # is the other half of the b834 finding that they are the VTOL nozzles, not gear.
+    GEAR_SLOT = {"gear_l": 0, "gear_r": 1, "misc_a": 2, "misc_b": 3}
+    def gear_parent(wheel_name):
+        i = fidx.get(wheel_name)
+        seen = 0
+        while i is not None and i >= 0 and seen < 32:
+            nm = dff.frames[i].name.lower()
+            if nm in GEAR_SLOT:
+                return GEAR_SLOT[nm]
+            p = dff.frames[i].parent
+            i = p if (p is not None and p >= 0 and p != i) else None
+            seen += 1
+        return 0xFF
+    wheel_parent = [gear_parent(n) for n in
+                    ("wheel_lf_dummy", "wheel_rf_dummy", "wheel_lb_dummy", "wheel_rb_dummy")]
 
     total_verts = 0
     def count(meshes):
@@ -1052,7 +1109,9 @@ def bake_plane(dff_name, txd_name, handling, carcols_name, wheel_scale, out_path
     spheres = select_col_spheres(spheres, 24)
 
     # ---- assemble PLN1 ----
-    buf = bytearray(b"PLN1")
+    # PLN2 (b837): PLN1 plus u8 wheelParent[4] after the wheel mounts. The magic moves so
+    # an engine expecting one layout can never silently read the other.
+    buf = bytearray(b"PLN2")
     buf += struct.pack("<24f", *hand)
     buf += struct.pack("<21f", *fly)
     buf += struct.pack("<3B3B2x", *prim_rgb, *sec_rgb)
@@ -1060,6 +1119,7 @@ def bake_plane(dff_name, txd_name, handling, carcols_name, wheel_scale, out_path
     buf += struct.pack("<2f", wheel_scale, wrad)
     for m in mounts:
         buf += struct.pack("<3f", *m)
+    buf += struct.pack("<4B", *wheel_parent)      # b837 (PLN2): gear slot per wheel, 0xFF = none
     n_prop = min(len(prop_anchors), 2)
     buf += struct.pack("<B3x", n_prop)
     for k in range(2):
@@ -1089,8 +1149,16 @@ def bake_plane(dff_name, txd_name, handling, carcols_name, wheel_scale, out_path
 
     dep = ""
     for p in out_paths:
+        # b853: REFUSE a path with no directory. Release sanitisation left OUT/DEPLOY/
+        # VEH_DIR_* as empty strings, so a run without --out built "veh/veh_hydra.bin" with
+        # an empty root - which on Windows resolves against the CURRENT DRIVE and quietly
+        # dropped eleven plane files into E:\. The bake still printed success, so nothing
+        d = os.path.dirname(os.path.abspath(p))
+        if not os.path.dirname(p) or os.path.splitdrive(d)[1] in ("\\", "/"):
+            print("  !! refusing to write %r - no output directory (pass --out)" % p)
+            continue
         try:
-            os.makedirs(os.path.dirname(p), exist_ok=True)
+            os.makedirs(d, exist_ok=True)
             open(p, "wb").write(buf); dep += ("+" if dep else "") + os.path.basename(os.path.dirname(p))
         except OSError:
             pass

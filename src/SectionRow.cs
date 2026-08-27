@@ -60,6 +60,10 @@ public sealed class SectionRow : UserControl
     public void SetProgress(int pct) => OnUi(() => { _bar.Value = Math.Clamp(pct, 0, 100); });
     public void SetEstimate(TimeSpan t) => OnUi(() => { _time.Text = t.TotalSeconds < 1 ? "" : Human(t); });
 
+    /// Tick/untick from any thread. The analyser runs off the UI thread, and it is what
+    /// decides which sections have work, so it needs a marshalled setter like SetStatus.
+    public void SetChecked(bool on) => OnUi(() => _check.Checked = on);
+
     public void SetStatus(SectionStatus s) => OnUi(() =>
     {
         (_badge.Text, _badge.ForeColor, _badge.BackColor) = s switch

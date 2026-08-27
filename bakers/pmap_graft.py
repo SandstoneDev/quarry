@@ -34,11 +34,24 @@ from gvcslib import psp_scene
 VERT = 12          # PmapVertex bytes
 IDX = 2            # u16 index
 
+PMAP_MAGIC = 0x50414D50   # 'PMAP' little-endian
+# Matches src/platform_psp/pmap.h's own PMAP_VERSION_STRIPPED (5): a world-store
+# stage 2a stripped tile (tools/world_store_build.py strip_tile). Its comp_model/
+# comp_tex tables hold GLOBAL ids, not local byte offsets - a donor in this format
+# read by the code below (which assumes offsets) silently sliced the wrong bytes at
+# a handful of real positions and fed the result to LZ4, which in most cases raised
+# but in 3 of 53917 simulated cases decompressed successfully to the WRONG, SHORT
+# length with no error at all (see model_pools/texture_pools's own length
+# assertion, which is what actually catches that class of bug - this constant only
+# closes the one door that was open by name).
+PMAP_VERSION_STRIPPED = 5
+
 
 class DonorTile:
     """Minimal v2/v3 reader: raw tables + on-demand pool slices (v3 inflates)."""
 
     def __init__(self, path):
+        self.path = path
         d = self.data = open(path, "rb").read()
         (self.magic, self.version, _fsz,
          self.model_count, self.model_off,
@@ -50,8 +63,29 @@ class DonorTile:
          self.index_off, self.index_bytes,
          self.texel_off, self.texel_bytes,
          self.clut_off, self.clut_bytes) = struct.unpack_from("<20I", d, 0)
+        # No check here at all previously - found in review. This tool grafts
+        # geometry from a donor into a target's RAW pools and runs BEFORE the rest
+        # of the bake chain; a wrong-format donor must be refused loudly, not read
+        # as though its tables meant what they mean for a real v2/v3 tile. Magic
+        # first (this module never checked it at all before), then an EXACT
+        # whitelist - not the open-ended `self.version >= 3` this used to branch
+        # on, which a stripped tile (5) or a v4 UVR tile also satisfies - matching
+        # this file's OWN docstring: "Donor tiles may be v2 or v3."
+        if self.magic != PMAP_MAGIC:
+            raise ValueError("%s: not a .pmap (bad magic %08x)" % (path, self.magic))
+        if self.version == PMAP_VERSION_STRIPPED:
+            raise ValueError(
+                "%s: this is a STRIPPED tile (version=%d) - pmap_graft.py cannot read "
+                "one as a donor; its comp_model/comp_tex tables hold GLOBAL ids into a "
+                "companion world.idx/world.dat, not local byte offsets, and it belongs "
+                "to the world store (tools/world_store_build.py)" % (path, self.version))
+        if self.version not in (2, 3):
+            raise ValueError(
+                "%s: donor tiles must be v2 or v3 (got version=%d) - this tool's own "
+                "docstring says so" % (path, self.version))
+
         self.comp_models = self.comp_tex = None
-        if self.version >= 3:
+        if self.version == 3:
             flag, cmo, cto = struct.unpack_from("<3I", d, 80)
             if flag:
                 self.comp_models = [struct.unpack_from("<2I", d, cmo + 8 * i)
@@ -85,8 +119,27 @@ class DonorTile:
         vb, ib = (v1 - v0) * VERT, (i1 - i0) * IDX
         if self.comp_models:
             off, csize = self.comp_models[i]
-            raw = lz4.block.decompress(self.data[off:off + csize],
-                                       uncompressed_size=vb + ib)
+            need = vb + ib
+            try:
+                raw = lz4.block.decompress(self.data[off:off + csize], uncompressed_size=need)
+            except Exception as exc:
+                raise ValueError("%s: model %d blob does not decompress (%s: %s)"
+                                 % (self.path, i, type(exc).__name__, exc)) from exc
+            # lz4.block.decompress does NOT pad or error when the compressed stream's
+            # own content is SHORTER than uncompressed_size - it silently returns
+            # however many bytes the stream actually held (confirmed: requesting MORE
+            # than a stream's real length succeeds and returns the real, shorter
+            # length; only requesting LESS raises). Reading the wrong bytes at the
+            # wrong offset - exactly what a version mismatch (or any other table
+            # corruption) produces - is therefore invisible to the try/except above
+            # in general: this length check is the one that actually generalises,
+            # catching a short/wrong decompression regardless of WHY it happened, not
+            # just the one cause (a stripped donor) that prompted adding it.
+            if len(raw) != need:
+                raise ValueError(
+                    "%s: model %d blob decompressed to %d bytes, its own tables "
+                    "promise %d - refusing to graft truncated or wrong data"
+                    % (self.path, i, len(raw), need))
             return raw[:vb], raw[vb:vb + ib]
         v = self.data[self.vertex_off + v0 * VERT: self.vertex_off + v1 * VERT]
         x = self.data[self.index_off + i0 * IDX: self.index_off + i1 * IDX]
@@ -103,8 +156,22 @@ class DonorTile:
         cb = ce * 4
         if self.comp_tex:
             off, csize = self.comp_tex[i]
-            raw = lz4.block.decompress(self.data[off:off + csize],
-                                       uncompressed_size=tb + cb)
+            need = tb + cb
+            try:
+                raw = lz4.block.decompress(self.data[off:off + csize], uncompressed_size=need)
+            except Exception as exc:
+                raise ValueError("%s: texture %d blob does not decompress (%s: %s)"
+                                 % (self.path, i, type(exc).__name__, exc)) from exc
+            # See model_pools's own comment: a short/wrong decompression is not an
+            # exception, it is a silently shorter return value, and this is the check
+            # that actually catches it - this is literally the shape of the bug
+            # found live: region_10_9.pmap texture 56 expected 2880 bytes and got 43,
+            # with no exception anywhere in the original code.
+            if len(raw) != need:
+                raise ValueError(
+                    "%s: texture %d blob decompressed to %d bytes, its own tables "
+                    "promise %d - refusing to graft truncated or wrong data"
+                    % (self.path, i, len(raw), need))
             return raw[:tb], raw[tb:tb + cb]
         t = self.data[self.texel_off + tf: self.texel_off + tf + tb]
         c = self.data[self.clut_off + cf: self.clut_off + cf + cb] if ce else b""

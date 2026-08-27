@@ -28,6 +28,19 @@ OPCODES = {
     "ANDOR":              (0x00D6, "i"),
     "SET_TIME_OF_DAY":    (0x00C0, "ii"),
     "FORCE_WEATHER":      (0x01B6, "i"),   # b609: param = SA weather TYPE 0..22 (SET_WEATHER_NOW)
+    # b873 weapons - SA-canonical. main.scm arms anybody through GET_PLAYER_CHAR +
+    # GIVE_WEAPON_TO_CHAR and nothing else, so these are the weapon-giving path.
+    "GET_PLAYER_CHAR":         (0x01F5, "iv"),
+    "GIVE_WEAPON_TO_CHAR":     (0x01B2, "iii"),
+    "SET_CHAR_AMMO":           (0x017B, "iii"),
+    "SET_CURRENT_CHAR_WEAPON": (0x01B9, "ii"),
+    "REMOVE_WEAPON_FROM_CHAR": (0x0555, "ii"),
+    "REMOVE_ALL_CHAR_WEAPONS": (0x048F, "i"),
+    "GET_AMMO_IN_CHAR_WEAPON": (0x041A, "iiv"),
+    "GET_WEAPONTYPE_MODEL":    (0x0781, "iv"),
+    "GET_WEAPONTYPE_SLOT":     (0x0782, "iv"),
+    "IS_CURRENT_CHAR_WEAPON":  (0x02D8, "ii"),
+    "HAS_CHAR_GOT_WEAPON":     (0x0491, "ii"),
     "RELEASE_WEATHER":    (0x01B7, ""),    # b609: back to the region cycle
     "PRINT_NOW":          (0x00BC, "si"),
     # demake player-implicit opcodes (0x7F00 block)
@@ -54,6 +67,9 @@ OPCODES = {
     "SET_OBJECTIVE":      (0x7F15, "s"),     # GXT-key(str8) -> objective line
     "MISSION_PASSED":     (0x7F16, ""),      # green banner + clear mission
     "MISSION_FAILED":     (0x7F17, "s"),     # GXT-key(str8) reason -> red banner + clear
+    # SA-canonical: switch an audio zone on/off by name. main.scm calls it 17 times,
+    # always for one of the four mission-ambience zones the disc ships inactive.
+    "SWITCH_AUDIO_ZONE":  (0x0917, "si"),    # zone name(str8), enable(0/1)
     # scripted camera (SA ids)
     "SET_FIXED_CAMERA_POSITION": (0x015F, "ffffff"),
     "POINT_CAMERA_AT_POINT":     (0x0160, "fffi"),
