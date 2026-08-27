@@ -7,7 +7,7 @@ namespace Quarry;
 /// Converter build identity, stamped into every data/ manifest.
 public static class QuarryInfo
 {
-    public const string Version = "v1008";  // release tag; bump per release (see RELEASE_PLAYBOOK). UpdateChecker string-compares this to the latest GitHub release tag.
+    public const string Version = "v1009";  // release tag; bump per release (see RELEASE_PLAYBOOK). UpdateChecker string-compares this to the latest GitHub release tag.
                                             // ★ The converter version TRACKS THE ENGINE BUILD NUMBER. Quarry sat at
                                             // v915 while the engine reached b1005, so a user could not tell which
                                             // converter matches the build they are running - and that pairing is

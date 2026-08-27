@@ -1635,10 +1635,15 @@ public static class ConvertPipeline
     // default cannot silently move what a converted install ships with.
     // groundlod / grass are no longer listed above: both are preset-managed rows, and
     // Balance sets them anyway.
+    /* ★ b1009: `logpin` is NOT written here any more. The engine ships it as 1 and the
+     * on-screen toast BACKDROP is drawn only while it is set (DebugMenu.c ~1838 returns
+     * before the dm_rect when it is clear), so writing 0 here left boot messages floating
+     * over the world with nothing behind them - readable in the menu, which paints its own
+     * panel, and unreadable everywhere else. A default file should not quietly contradict
+     * the engine's own table; it now carries only the keys that genuinely differ. */
     private const string DefaultSettings = """
         log 0
         lrauto 0
-        logpin 0
         nearx10 20
         nearfloorx10 12
         tilearc 1
