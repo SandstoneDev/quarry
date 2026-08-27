@@ -46,7 +46,16 @@ TAGLEN = {
 }
 MAX_TAG = 0x13
 
-MAIN_OFFSET = 55976   # confirmed by header GOTO-chain trace
+def main_offset(buf):
+    """Walk the 02 00 01 GOTO chain; MAIN starts where the chain stops.
+ Never hardcode this - 56072 is true for our PS2 disc and for nothing else."""
+    off = 0
+    while off + 8 <= len(buf) and buf[off] == 2 and buf[off+1] == 0 and buf[off+2] == 1:
+        nxt = struct.unpack_from('<I', buf, off + 3)[0]
+        if nxt <= off or nxt >= len(buf):
+            break
+        off = nxt
+    return off
 
 def load_table(sajson_path):
     d = json.load(open(sajson_path, encoding='utf-8'))
@@ -232,22 +241,23 @@ def main():
 
     mm = open(scm, "rb").read()
     table = load_table(sajson)
+    main_off = main_offset(mm)
     print("main.scm size: %d bytes" % len(mm))
     print("opcode table: %d entries (sa.json)" % len(table))
-    print("MAIN thread offset: %d\n" % MAIN_OFFSET)
+    print("MAIN thread offset: %d\n" % main_off)
 
     hist = Counter()
     unknown_ids = Counter()
     heuristic_sites = []
     n_instr, n_heur, endip, n_resync, resync_gap = disasm(
-        mm, table, MAIN_OFFSET, len(mm), hist, unknown_ids, heuristic_sites)
+        mm, table, main_off, len(mm), hist, unknown_ids, heuristic_sites)
 
     distinct = len(hist)
     print("Instructions decoded (linear sweep MAIN..EOF): %d" % n_instr)
     print("Distinct opcodes used: %d" % distinct)
     print("Heuristic/uncertain sites: %d" % n_heur)
     print("Resync events: %d, total bytes skipped as untracked-data: %d (%.3f%% of body)" %
-          (n_resync, resync_gap, 100.0*resync_gap/(len(mm)-MAIN_OFFSET)))
+          (n_resync, resync_gap, 100.0*resync_gap/(len(mm)-main_off)))
     print("Final IP reached: %d / %d\n" % (endip, len(mm)))
 
     print("=== TOP 60 OPCODES BY FREQUENCY ===")

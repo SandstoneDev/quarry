@@ -201,7 +201,7 @@ public static class ConvertPipeline
                 new Step("Bake melee combos", "melee", 1, StepBakeMelee),     // data/melee.dat -> melee.bin: the thirteen fight combos. Non-fatal: without it every melee weapon falls back to bare fists.
                 new Step("Bake weapon table",  "weapon", 1, StepBakeWeapons),   // non-fatal (absent = no weapons)
                 new Step("Bake weapon models", "wmdl", 3, StepBakeWeaponModels), // non-fatal (absent = no gun in hand / no HUD icon). v3: merge the extra atomics AT THEIR FRAME MATRIX (minigun2/sawbarl/petals) + bake the gunflash mesh
-                new Step("Bake pickup icons", "pkup", 1, StepBakePickups),   // non-fatal (absent = weapons still lie in the world, the icon band does not)
+                new Step("Bake pickup icons", "pkup", 2, StepBakePickups),   // v2 (b1008): PROPEXT.IDE is a PC file and is not on a PS2 disc; requiring it made this step skip ENTIRELY on every PS2 convert, shipping an empty data/pickups. non-fatal (absent = weapons still lie in the world, the icon band does not)
                 new Step("Bake pedestrians",   "peds", 5, StepBakePeds),          // non-fatal (ambient peds are PS2-native). v3: same 8x position-scale fix as the cutscene actors
             }),
         new("effects", "World effects (grass, breakables)",
@@ -1963,12 +1963,38 @@ public static class ConvertPipeline
         if (s_python is null) { cx.Log("   python not found - pickup icons skipped"); return true; }
 
         string gameRoot = Path.Combine(cx.TempDir, "game");
-        foreach (var p in new[] { "DATA/MAPS/GENERIC/DYNAMIC.IDE", "DATA/MAPS/GENERIC/PROPEXT.IDE" })
+        /* ★★★★ b1008 - PROPEXT.IDE IS A PC FILE AND IS NOT ON A PS2 DISC.
+         *
+         * This loop treated both IDEs as required and bailed on the first miss, so every
+         * convert from a PS2 image logged
+         *     miss DATA/MAPS/GENERIC/PROPEXT.IDE - pickup icons skipped
+         * and shipped an EMPTY data/pickups. Not just the jetpack: money, health, armour,
+         * bribe, info, the save icon - every pickup model in the game, absent for everyone
+         * who used the published converter. The pickups still WORK (they spin, they can be
+         * collected, the jetpack can be worn); they are simply invisible, which is why this
+         * read as "the jetpack is missing" rather than as a broken build.
+         *
+         * pickup_bake.py was already right about this - ide_models() skips an IDE that is
+         * not there and merges whatever it finds. The pipeline was the half that insisted.
+         * DYNAMIC.IDE is the one that actually declares the icon band and IS on the disc;
+         * PROPEXT.IDE is a bonus when present. Only a missing DYNAMIC.IDE is fatal now, and
+         * the optional one says so quietly instead of cancelling the step. */
+        {
+            string req = "DATA/MAPS/GENERIC/DYNAMIC.IDE";
+            string dest = Path.Combine(gameRoot, req.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(dest))
+            {
+                var e = cx.Iso!.Find(req);
+                if (e is null) { cx.Log($"   miss {req} - pickup icons skipped"); return true; }
+                cx.Iso.ExtractTo(e, dest);
+            }
+        }
+        foreach (var p in new[] { "DATA/MAPS/GENERIC/PROPEXT.IDE" })
         {
             string dest = Path.Combine(gameRoot, p.Replace('/', Path.DirectorySeparatorChar));
             if (File.Exists(dest)) continue;
             var e = cx.Iso!.Find(p);
-            if (e is null) { cx.Log($"   miss {p} - pickup icons skipped"); return true; }
+            if (e is null) { cx.Log($"   {p} not on this disc (PC-only) - continuing without it"); continue; }
             cx.Iso.ExtractTo(e, dest);
         }
         if (!File.Exists(Path.Combine(gameRoot, "MODELS", "GTA3.IMG")))
@@ -1985,6 +2011,21 @@ public static class ConvertPipeline
         string pdir = Path.Combine(cx.OutDir, "pickups");
         int n = Directory.Exists(pdir) ? Directory.GetFiles(pdir, "p*.bin").Length : 0;
         cx.Log($"   pickup icons baked -> {pdir} ({n} files)");
+
+        /* ★ b1008: the jetpack needs a SECOND bake. pickup_bake welds each model into one
+         * mesh, which is right for something lying on the ground - but the worn pack tilts
+         * its two nozzle frames independently, and a welded mesh has no frames left. This
+         * emits the body and the two nozzles separately plus their offsets. Non-fatal: the
+         * welded p370.bin from the step above is still there, so a failure here costs the
+         * moving nozzles, not the pack. */
+        {
+            string? jsc = PythonRunner.FindScript("jetpack_bake.py");
+            if (jsc is null) cx.Log("   jetpack_bake.py not found - nozzles will not move");
+            else if (!PythonRunner.Run(s_python, jsc, new[] { "--out", cx.OutDir }, cx.Log, env, null, cx.Ct, cx.OnPercent))
+                cx.Log("   jetpack_bake.py failed - nozzles will not move");
+            else
+                cx.Log($"   jetpack parts baked -> {pdir}");
+        }
         return true;
     }
 
