@@ -50,17 +50,21 @@ steps.
 
 ## Building
 
-Needs only the **.NET 8 SDK** (`dotnet`). The embedded Python and the wheels are
-fetched once into `.cache/`.
+Needs the **.NET 8 SDK** (`dotnet`). The first build also needs internet access:
+the embedded Python and its three wheels are downloaded once into `.cache/`.
+Everything else comes from this repository.
 
 ```powershell
-pwsh -File build.ps1 -Clean
+powershell -ExecutionPolicy Bypass -File build.ps1 -Clean
 ```
+
+(`pwsh -File build.ps1 -Clean` works too.)
 
 Produces `dist/Quarry/` (the runnable folder) and `dist/Quarry-vdev.zip`.
 
 - `src/` - the Quarry C# GUI + convert pipeline
 - `bakers/` - the Python bakers that read the disc and emit each data file
+- `content/` - the inputs that ship with the tool instead of coming from the disc
 
 ---
 

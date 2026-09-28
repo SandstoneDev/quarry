@@ -1,0 +1,209 @@
+# CLEO-like runnable routines, spawned on demand from the debug menu "Scripts" tab.
+# MAIN terminates immediately; each `e_*` label is an exported entry point
+# (scm_asm.py --syms emits SCMSYM_<NAME>). Routines are linear + self-terminating.
+GLOBALS 6
+# world init from the script (as SA main.scm does): set the start time of day.
+# The hardcoded CClock default still runs first; this overrides it -> time is now
+# script-configured. Add weather/etc. here to migrate more world init.
+MAIN
+  SET_TIME_OF_DAY 8 0
+  RELEASE_WEATHER
+  TERMINATE
+:e_midday
+  SET_TIME_OF_DAY 12 0
+  TERMINATE
+:e_night
+  SET_TIME_OF_DAY 0 0
+  TERMINATE
+# b609: FORCE_WEATHER now takes the SA weather TYPE (01B6 SET_WEATHER_NOW):
+# 0 extrasunny LA, 8 rainy SF, 9 foggy SF, 16 rainy countryside (storm),
+# 17 extrasunny desert (heat), 19 sandstorm, 20 underwater. RELEASE_WEATHER
+# returns to the region cycle.
+:e_rain
+  FORCE_WEATHER 8
+  TERMINATE
+:e_clear
+  FORCE_WEATHER 0
+  TERMINATE
+:e_w_storm
+  FORCE_WEATHER 16
+  TERMINATE
+:e_w_fog
+  FORCE_WEATHER 9
+  TERMINATE
+:e_w_sand
+  FORCE_WEATHER 19
+  TERMINATE
+:e_w_heat
+  FORCE_WEATHER 17
+  TERMINATE
+:e_w_under
+  FORCE_WEATHER 20
+  TERMINATE
+:e_w_rel
+  RELEASE_WEATHER
+  TERMINATE
+# --- audio zones (SA 0x0917 SWITCH_AUDIO_ZONE) ---------------------------
+# BEACH, AWARDS, LOWRIDE and MADDOGL ship INACTIVE in Audiozon.ipl: they are
+# mission ambiences, and main.scm switches each on for its scene and off after
+# it (17 calls in all). These two routines do by hand what a mission would, so
+# the zone can be heard without the mission that owns it. Turn BEACH on, then
+# walk to Santa Maria (about 536,-1888).
+:e_zbeach
+  SWITCH_AUDIO_ZONE "BEACH" 1
+  TERMINATE
+:e_zbeacho
+  SWITCH_AUDIO_ZONE "BEACH" 0
+  TERMINATE
+:e_banner
+  PRINT_NOW "SCMMENU" 3000
+  TERMINATE
+:e_heal
+  HEAL_PLAYER
+  ADD_PLAYER_MONEY 5000
+  TERMINATE
+:e_tp
+  TELEPORT_PLAYER 2490.0 -1670.0 20.0
+  TERMINATE
+# resident proximity-trigger (mission primitive): loops until the player reaches
+# the point, then rewards + prints. Start it, walk to (2490,-1670), it fires.
+:e_trigger
+  ADD_BLIP_FOR_COORD 2490.0 -1670.0 13.0 $0
+  CREATE_OBJECT 2490.0 -1670.0 13.0 $1
+:t_loop
+  WAIT 250
+  IS_PLAYER_NEAR_2D 2490.0 -1670.0 15.0
+  GOTO_IF_FALSE @t_loop
+  REMOVE_BLIP $0
+  DELETE_OBJECT $1
+  PRINT_STRING "DONE" 3000
+  ADD_PLAYER_MONEY 250
+  TERMINATE
+# fade demo: fade to black, hold, fade back in
+:e_fade
+  DO_FADE 800 1
+  WAIT 1000
+  DO_FADE 800 0
+  TERMINATE
+# GXT-text demo: show a table string
+:e_welcome
+  PRINT_STRING "WELCOME" 3000
+  TERMINATE
+# scripted-camera demo: fixed shot looking at the spawn, hold, restore
+:e_camera
+  SET_FIXED_CAMERA_POSITION 2490.0 -1640.0 45.0 0.0 0.0 0.0
+  POINT_CAMERA_AT_POINT 2471.0 -1674.0 12.0 2
+  WAIT 6000
+  RESTORE_CAMERA
+  TERMINATE
+# functional-pickup demo: drop a pickup near spawn, walk over it -> reward
+:e_pickup
+  CREATE_PICKUP 350 3 2478.0 -1674.0 13.0 $0
+:p_loop
+  WAIT 300
+  HAS_PICKUP_BEEN_COLLECTED $0
+  GOTO_IF_FALSE @p_loop
+  PRINT_STRING "DONE" 3000
+  ADD_PLAYER_MONEY 100
+  TERMINATE
+# city barriers via script (as in SA main.scm): open / lock the SF/Vegas barriers
+:e_opencity
+  SET_CITY_BARRIERS 0
+  PRINT_STRING "WELCOME" 2000
+  TERMINATE
+:e_lockcity
+  SET_CITY_BARRIERS 1
+  TERMINATE
+# time flow control (day/night speed) from the script
+:e_fasttime
+  SET_TIME_SCALE 20.0
+  TERMINATE
+:e_normtime
+  SET_TIME_SCALE 1.0
+  TERMINATE
+# script-driven dynamic weather (world logic on the script, not hardcoded):
+# resident routine cycling clear -> rain -> heat. Stop it from the menu.
+:e_wcycle
+:w_loop
+  FORCE_WEATHER 0
+  WAIT 8000
+  FORCE_WEATHER 8
+  WAIT 8000
+  FORCE_WEATHER 17
+  WAIT 8000
+  GOTO @w_loop
+# --- TEST MISSION: reach the checkpoint -> Mission Passed -----------------
+# Authored with the SA-canonical opcodes (not the demake 0x7Fxx set) so this IS the
+# shape real main.scm missions have - port them 1:1 by pasting their SANNY listing:
+#   DECLARE_MISSION_FLAG $ONMISSION ; $ONMISSION = 1 ; ...objective... ; blip + marker ;
+#   loop: LOCATE_PLAYER ; on arrival REGISTER_MISSION_PASSED + tune ; $ONMISSION = 0 ; end
+# $0 = ON_MISSION flag, $1 = blip handle, $2 = marker object handle.
+:e_mtest
+  DECLARE_MISSION_FLAG $0
+  SET_VAR_INT $0 1
+  PRINT_HELP "MTEST_H"
+  ADD_BLIP_FOR_COORD 2490.0 -1655.0 13.0 $1
+:m_loop
+  WAIT 250
+  LOCATE_PLAYER_ANY_MEANS_2D 0 2490.0 -1655.0 4.0 4.0 0
+  GOTO_IF_FALSE @m_loop
+  REMOVE_BLIP $1
+  CLEAR_HELP
+  REGISTER_MISSION_PASSED "MTEST_N"
+  PLAY_MISSION_PASSED_TUNE 1
+  SET_VAR_INT $0 0
+  TERMINATE
+# --- CUTSCENE 1: the player meets a character holding a bat ---------------
+# No visible antagonist ped yet (engine gap), so the other character is a marker
+# prop + dialogue + one-shot impact sounds. Fade -> fixed camera -> timed lines
+# -> restore. Line text lives in text/strings.txt, keyed by the labels below.
+:e_cutscene
+  DO_FADE 500 1
+  WAIT 600
+  TELEPORT_PLAYER 2495.0 -1668.0 13.0
+  SET_PLAYER_HEADING 1.57
+  CREATE_OBJECT 2498.5 -1668.0 13.0 $2
+  SET_FIXED_CAMERA_POSITION 2493.0 -1665.5 15.0 0.0 0.0 0.0
+  POINT_CAMERA_AT_POINT 2498.5 -1668.0 13.5 2
+  DO_FADE 500 0
+  WAIT 400
+  PRINT_STRING "SMOKE1" 2600
+  WAIT 2600
+  PRINT_STRING "CJ1" 2400
+  WAIT 2400
+  PRINT_STRING "SMOKE2" 2200
+  WAIT 2200
+  PRINT_STRING "CJ2" 2200
+  WAIT 2400
+  RESTORE_CAMERA
+  DELETE_OBJECT $2
+  TERMINATE
+
+# --- WEAPONS (b873) -------------------------------------------------------
+# SA arms anybody through GET_PLAYER_CHAR + GIVE_WEAPON_TO_CHAR and nothing else;
+# main.scm, the shops and CLEO all go through these. $3 holds the player's CHAR
+# handle, which is what every one of them takes as its first argument.
+:e_wpistol
+  GET_PLAYER_CHAR 0 $3
+  GIVE_WEAPON_TO_CHAR $3 22 100
+  SET_CURRENT_CHAR_WEAPON $3 22
+  TERMINATE
+:e_wak47
+  GET_PLAYER_CHAR 0 $3
+  GIVE_WEAPON_TO_CHAR $3 30 300
+  SET_CURRENT_CHAR_WEAPON $3 30
+  TERMINATE
+:e_wshotgun
+  GET_PLAYER_CHAR 0 $3
+  GIVE_WEAPON_TO_CHAR $3 25 50
+  SET_CURRENT_CHAR_WEAPON $3 25
+  TERMINATE
+:e_wbat
+  GET_PLAYER_CHAR 0 $3
+  GIVE_WEAPON_TO_CHAR $3 5 1
+  SET_CURRENT_CHAR_WEAPON $3 5
+  TERMINATE
+:e_wnone
+  GET_PLAYER_CHAR 0 $3
+  REMOVE_ALL_CHAR_WEAPONS $3
+  TERMINATE

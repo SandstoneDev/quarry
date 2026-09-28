@@ -1,0 +1,22 @@
+# Demake string table (GXT-equivalent). KEY=value, KEY up to 8 chars.
+#
+# This ships inside the converter, so it stays clear of names and wording owned by
+# the original game - those belong to the disc the user supplies, not to this tool.
+# Drop your own file over data/text/strings.txt to change any of it: the engine
+# reads it verbatim and prints the raw key for anything missing.
+WELCOME=Welcome
+MISSION=Reach the marker
+DONE=Objective complete
+REWARD=You earned 250 dollars
+FAILED=Mission failed
+# --- mission system ---
+MTEST_O=Go to the checkpoint
+MTEST_H=Get to the red marker to complete the mission.
+MTEST_N=Test Mission
+M_PASSD=Mission Passed!
+M_FAIL=Mission Failed
+# --- demo cutscene dialogue ---
+SMOKE1=Long time, cuz.
+CJ1=Why you carrying that bat?
+SMOKE2=Ha! Just playing, homie.
+CJ2=You crazy, man.
